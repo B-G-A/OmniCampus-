@@ -1,4 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
+<<<<<<< HEAD
+=======
+import api from "../utils/api";
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
 const QUICK_PROMPTS = [
   "What is an algorithm?",
@@ -8,8 +12,19 @@ const QUICK_PROMPTS = [
 ];
 
 function ChatbotPage() {
+<<<<<<< HEAD
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+=======
+  const [subjects, setSubjects] = useState([]);
+  const [selectedSubject, setSelectedSubject] = useState("");
+  const [sessionId, setSessionId] = useState("");
+  
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
   const endRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -22,6 +37,7 @@ function ChatbotPage() {
     scrollToBottom();
   }, [messages]);
 
+<<<<<<< HEAD
   const sendMessage = (text) => {
     if (!text.trim()) return;
 
@@ -34,6 +50,86 @@ function ChatbotPage() {
 
     setMessages((prev) => [...prev, userMessage, botMessage]);
     setInput("");
+=======
+  // Fetch student subjects
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        const res = await api.get("/student/subjects");
+        if (res && res.success) {
+          setSubjects(res.data);
+          if (res.data.length > 0) {
+            setSelectedSubject(res.data[0]._id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch subjects:", err);
+      }
+    };
+    fetchSubjects();
+  }, []);
+
+  // Create a new session when subject changes
+  useEffect(() => {
+    if (!selectedSubject) return;
+    
+    const createSession = async () => {
+      try {
+        const res = await api.post("/chat/session", { subjectId: selectedSubject });
+        if (res && res.success) {
+          setSessionId(res.data.sessionId);
+          setMessages([
+            {
+              sender: "bot",
+              text: `Hello! I'm your AI assistant for the selected subject. Ask me questions about the uploaded course materials.`
+            }
+          ]);
+        }
+      } catch (err) {
+        console.error("Failed to create session:", err);
+      }
+    };
+    createSession();
+  }, [selectedSubject]);
+
+  const sendMessage = async (text) => {
+    if (!text.trim() || !sessionId || !selectedSubject) return;
+
+    const userMessage = { sender: "user", text };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      const res = await api.post("/chat/query", {
+        message: text,
+        subjectId: selectedSubject,
+        sessionId: sessionId,
+        allowExternal: false
+      });
+      
+      if (res && res.success) {
+        setMessages((prev) => [
+          ...prev, 
+          { 
+            sender: "bot", 
+            text: res.data.answer || res.data.response,
+            sources: res.data.sources,
+            confidence: res.data.confidence_score,
+            pageNumber: res.data.page_number,
+            relatedTopics: res.data.related_topics
+          }
+        ]);
+      } else {
+        setMessages((prev) => [...prev, { sender: "bot", text: "Sorry, I could not generate an answer right now." }]);
+      }
+    } catch (err) {
+      console.error("Query failed:", err);
+      setMessages((prev) => [...prev, { sender: "bot", text: "Error: AI service is currently unavailable." }]);
+    } finally {
+      setLoading(false);
+    }
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
   };
 
   const handleSubmit = (e) => {
@@ -44,10 +140,31 @@ function ChatbotPage() {
   return (
     <div className="chat-page">
       <header className="chat-header">
+<<<<<<< HEAD
         <div className="chat-title">
           <span className="chat-title-avatar">🤖</span>
           <div>
             <h1>OmniCampus AI Chat</h1>
+=======
+        <div className="chat-title" style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <span className="chat-title-avatar">🤖</span>
+            <div>
+              <h1>OmniCampus AI Chat</h1>
+            </div>
+          </div>
+          <div>
+            <select 
+              value={selectedSubject} 
+              onChange={(e) => setSelectedSubject(e.target.value)}
+              style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #cbd5e1" }}
+            >
+              <option value="" disabled>Select a Subject</option>
+              {subjects.map(s => (
+                <option key={s._id} value={s._id}>{s.name} ({s.code})</option>
+              ))}
+            </select>
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
           </div>
         </div>
       </header>
@@ -61,6 +178,10 @@ function ChatbotPage() {
                 type="button"
                 className="prompt-pill"
                 onClick={() => sendMessage(prompt)}
+<<<<<<< HEAD
+=======
+                disabled={loading}
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
               >
                 {prompt}
               </button>
@@ -77,11 +198,63 @@ function ChatbotPage() {
                 aria-label={`${msg.sender} message`}
               >
                 <div className="message-avatar">{msg.sender === "bot" ? "🤖" : "🧑"}</div>
+<<<<<<< HEAD
                 <div className="message-bubble">
                   <p>{msg.text}</p>
                 </div>
               </article>
             ))}
+=======
+                <div className="message-bubble" style={{ width: "100%", maxWidth: "800px" }}>
+                  <p style={{ margin: "0 0 8px 0" }}>{msg.text}</p>
+                  
+                  {msg.sender === "bot" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "12px", borderTop: "1px solid rgba(0,0,0,0.1)", paddingTop: "12px", fontSize: "12px", color: "#475569" }}>
+                      {msg.sources && msg.sources.length > 0 && (
+                        <div>
+                          <strong>Sources:</strong> {msg.sources.join(", ")}
+                          {msg.pageNumber && <span> (Page {msg.pageNumber})</span>}
+                        </div>
+                      )}
+                      
+                      {msg.confidence !== undefined && msg.confidence !== null && (
+                        <div>
+                          <strong>Confidence:</strong> <span style={{ color: msg.confidence >= 70 ? "#16a34a" : msg.confidence >= 40 ? "#d97706" : "#dc2626" }}>{msg.confidence}%</span>
+                        </div>
+                      )}
+                      
+                      {msg.relatedTopics && msg.relatedTopics.length > 0 && (
+                        <div style={{ marginTop: "4px" }}>
+                          <strong style={{ display: "block", marginBottom: "4px" }}>Related Topics:</strong>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                            {msg.relatedTopics.map(topic => (
+                              <button 
+                                key={topic} 
+                                onClick={() => sendMessage(topic)}
+                                style={{ padding: "4px 10px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "12px", cursor: "pointer", fontSize: "11px", color: "#0369a1", transition: "all 0.2s" }}
+                                onMouseOver={(e) => { e.target.style.background = "#e0f2fe"; e.target.style.borderColor = "#bae6fd"; }}
+                                onMouseOut={(e) => { e.target.style.background = "#f1f5f9"; e.target.style.borderColor = "#cbd5e1"; }}
+                              >
+                                {topic}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </article>
+            ))}
+            {loading && (
+              <article className="chat-message bot">
+                <div className="message-avatar">🤖</div>
+                <div className="message-bubble">
+                  <p>Thinking...</p>
+                </div>
+              </article>
+            )}
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
             <div ref={endRef} />
           </div>
         </section>
@@ -94,9 +267,16 @@ function ChatbotPage() {
           placeholder="Ask a question about your course materials..."
           rows={1}
           aria-label="Type your message"
+<<<<<<< HEAD
         />
         <button type="submit" className="send-btn">
           Send
+=======
+          disabled={loading || !sessionId}
+        />
+        <button type="submit" className="send-btn" disabled={loading || !sessionId}>
+          {loading ? "..." : "Send"}
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
         </button>
       </form>
     </div>

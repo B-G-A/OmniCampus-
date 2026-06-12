@@ -13,15 +13,34 @@ const Semester = require('../models/Semester');
 const aiProxy = require('../services/aiProxy.service');
 const env = require('../config/env');
 const { AppError } = require('../middleware/errorHandler');
+<<<<<<< HEAD
+=======
+const { createBulkNotifications } = require('./notification.controller');
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
 // ── Map extension to fileType enum value ────────────────────────────────────
 const EXT_MAP = {
   '.pdf': 'pdf',
   '.pptx': 'pptx',
+<<<<<<< HEAD
   '.docx': 'docx',
   '.txt': 'txt',
 };
 
+=======
+  '.ppt': 'ppt',
+  '.docx': 'docx',
+  '.txt': 'txt',
+  '.png': 'png',
+  '.jpg': 'jpg',
+  '.jpeg': 'jpeg',
+  '.mp4': 'mp4',
+  '.zip': 'zip',
+};
+
+const RAG_SUPPORTED_TYPES = ['pdf', 'pptx', 'ppt', 'docx', 'txt'];
+
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 /**
  * POST /api/materials/upload
  * Accept file via multer, move to structured folder, create Material doc,
@@ -33,6 +52,7 @@ const uploadMaterial = async (req, res, next) => {
       throw new AppError('No file uploaded.', 400, 'NO_FILE');
     }
 
+<<<<<<< HEAD
     const { title, description, subjectId, semesterId } = req.body;
 
     // Validate relationships
@@ -42,6 +62,16 @@ const uploadMaterial = async (req, res, next) => {
     ]);
 
     if (!subject) throw new AppError('Subject not found.', 404, 'NOT_FOUND');
+=======
+    const subjectId = req.body.subjectId || req.body.subject;
+    const { title, description, department, unit } = req.body;
+
+    const subject = await Subject.findById(subjectId);
+    if (!subject) throw new AppError('Subject not found.', 404, 'NOT_FOUND');
+
+    const semesterId = subject.semester;
+    const semester = await Semester.findById(semesterId);
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     if (!semester) throw new AppError('Semester not found.', 404, 'NOT_FOUND');
 
     // ── Move file to structured path ────────────────────────────────
@@ -57,6 +87,11 @@ const uploadMaterial = async (req, res, next) => {
     const material = await Material.create({
       title: title || req.file.originalname,
       description: description || '',
+<<<<<<< HEAD
+=======
+      department: department || '',
+      unit: unit || '',
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
       fileType: EXT_MAP[ext.toLowerCase()] || 'other',
       fileName: req.file.originalname,
       filePath: destPath,
@@ -70,6 +105,7 @@ const uploadMaterial = async (req, res, next) => {
     subject.materials.push(material._id);
     await subject.save();
 
+<<<<<<< HEAD
     // ── Fire-and-forget AI ingestion ────────────────────────────────
     aiProxy
       .ingestDocument({
@@ -81,6 +117,36 @@ const uploadMaterial = async (req, res, next) => {
         collectionName: semester.vectorCollectionName,
       })
       .catch((err) => console.error('⚠️  AI ingestion failed:', err.message));
+=======
+    // ── Fire notifications to enrolled students ──────────────────────
+    if (subject.enrolledStudents && subject.enrolledStudents.length > 0) {
+      createBulkNotifications(subject.enrolledStudents, {
+        type: 'material',
+        title: 'New Study Material',
+        message: `New material '${material.title}' has been uploaded for ${subject.name}.`,
+        relatedId: subjectId,
+      });
+    }
+
+    // ── Fire-and-forget AI ingestion (if supported) ─────────────────
+    if (RAG_SUPPORTED_TYPES.includes(material.fileType)) {
+      aiProxy
+        .ingestDocument({
+          filePath: destPath,
+          fileType: material.fileType,
+          materialId: material._id.toString(),
+          subjectId: subjectId,
+          semesterId: semesterId,
+          collectionName: semester.vectorCollectionName,
+        })
+        .catch((err) => console.error('⚠️  AI ingestion failed:', err.message));
+    } else {
+      // For non-text files, mark as ingested since we skip AI
+      material.isIngested = true;
+      material.ingestedAt = new Date();
+      await material.save();
+    }
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
     res.status(201).json({ success: true, data: material });
   } catch (error) {

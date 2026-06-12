@@ -166,3 +166,14 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
+<<<<<<< HEAD
+=======
+# Python & AI Service
+__pycache__/
+*.pyc
+omnicampus-backend/python-ai-service/chroma_db/
+.venv/
+
+# Node Server
+omnicampus-backend/node-server/uploads/
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)

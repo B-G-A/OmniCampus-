@@ -21,10 +21,29 @@ const materialSchema = new mongoose.Schema(
       trim: true,
     },
 
+<<<<<<< HEAD
     fileType: {
       type: String,
       enum: {
         values: ['pdf', 'pptx', 'docx', 'txt', 'other'],
+=======
+    department: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    unit: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    fileType: {
+      type: String,
+      enum: {
+        values: ['pdf', 'pptx', 'ppt', 'docx', 'txt', 'png', 'jpg', 'jpeg', 'mp4', 'zip', 'other'],
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
         message: 'Unsupported file type',
       },
       default: 'other',

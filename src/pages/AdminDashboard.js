@@ -11,6 +11,19 @@ function AdminDashboard() {
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
 
+<<<<<<< HEAD
+=======
+  // Placements state
+  const [placementStats, setPlacementStats] = useState(null);
+  const [companies, setCompanies] = useState([]);
+  const [compName, setCompName] = useState("");
+  const [compWebsite, setCompWebsite] = useState("");
+  const [compDesc, setCompDesc] = useState("");
+  const [compMinCGPA, setCompMinCGPA] = useState("7.0");
+  const [compBranches, setCompBranches] = useState("CSE,ECE,EEE");
+  const [submittingCompany, setSubmittingCompany] = useState(false);
+
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
   // User form state
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -36,10 +49,19 @@ function AdminDashboard() {
   const loadAdminData = async () => {
     setLoading(true);
     try {
+<<<<<<< HEAD
       const [analyticsRes, usersRes, semRes] = await Promise.all([
         api.get("/admin/analytics"),
         api.get("/admin/users"),
         api.get("/semesters")
+=======
+      const [analyticsRes, usersRes, semRes, placementStatsRes, compRes] = await Promise.all([
+        api.get("/admin/analytics"),
+        api.get("/admin/users"),
+        api.get("/semesters"),
+        api.get("/placement/dashboard"),
+        api.get("/placement/companies")
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
       ]);
       if (analyticsRes && analyticsRes.success) setAnalytics(analyticsRes.data);
       if (usersRes && usersRes.success) {
@@ -53,6 +75,11 @@ function AdminDashboard() {
         setSemesters(semRes.data);
         if (semRes.data.length > 0) setSelectedSemester(semRes.data[0]._id);
       }
+<<<<<<< HEAD
+=======
+      if (placementStatsRes && placementStatsRes.success) setPlacementStats(placementStatsRes.data);
+      if (compRes && compRes.success) setCompanies(compRes.data);
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     } catch (err) {
       console.error("Failed to load admin metrics:", err);
     } finally {
@@ -140,6 +167,38 @@ function AdminDashboard() {
     }
   };
 
+<<<<<<< HEAD
+=======
+  const handleAddCompany = async (e) => {
+    e.preventDefault();
+    if (!compName.trim()) return;
+    setSubmittingCompany(true);
+    try {
+      const payload = {
+        name: compName,
+        website: compWebsite,
+        description: compDesc,
+        eligibility: {
+          minCGPA: parseFloat(compMinCGPA),
+          allowedBranches: compBranches.split(",").map(s => s.trim())
+        }
+      };
+      const res = await api.post("/placement/companies", payload);
+      if (res && res.success) {
+        alert("Company profile added successfully!");
+        setCompName("");
+        setCompWebsite("");
+        setCompDesc("");
+        loadAdminData();
+      }
+    } catch (err) {
+      alert(err.message || "Failed to add company.");
+    } finally {
+      setSubmittingCompany(false);
+    }
+  };
+
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
   if (loading) {
     return <div className="main"><h3>Loading central administration metrics...</h3></div>;
   }
@@ -169,11 +228,22 @@ function AdminDashboard() {
         <button onClick={() => setActiveTab("courses")} style={activeTab === "courses" ? activeTabStyle : tabStyle}>
           📚 Manage Courses
         </button>
+<<<<<<< HEAD
         <button onClick={() => setActiveTab("departments")} style={activeTab === "departments" ? activeTabStyle : tabStyle}>
           🏫 Manage Departments
         </button>
         <button onClick={() => setActiveTab("settings")} style={activeTab === "settings" ? activeTabStyle : tabStyle}>
           ⚙️ System Settings
+=======
+        <button onClick={() => setActiveTab("placements")} style={activeTab === "placements" ? activeTabStyle : tabStyle}>
+          💼 Placements
+        </button>
+        <button onClick={() => setActiveTab("departments")} style={activeTab === "departments" ? activeTabStyle : tabStyle}>
+          🏫 Departments
+        </button>
+        <button onClick={() => setActiveTab("settings")} style={activeTab === "settings" ? activeTabStyle : tabStyle}>
+          ⚙️ Settings
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
         </button>
       </div>
 
@@ -201,6 +271,19 @@ function AdminDashboard() {
               <h3>{analytics?.counts?.courses || 0}</h3>
               <p>Curriculum courses registered</p>
             </div>
+<<<<<<< HEAD
+=======
+            <div style={statCardStyle("linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)")}>
+              <small>Indexed Materials</small>
+              <h3>{analytics?.counts?.materials || 0}</h3>
+              <p>Documents in Vector DB</p>
+            </div>
+            <div style={statCardStyle("linear-gradient(135deg, #ec4899 0%, #be185d 100%)")}>
+              <small>Resume Scans</small>
+              <h3>{analytics?.counts?.resumeAnalyses || 0}</h3>
+              <p>AI ATS analyses performed</p>
+            </div>
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
           </div>
 
           <div style={detailsGridStyle}>
@@ -395,6 +478,78 @@ function AdminDashboard() {
         </div>
       )}
 
+<<<<<<< HEAD
+=======
+      {/* Placements Tab */}
+      {activeTab === "placements" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+          <div style={detailsBlockStyle}>
+            <h3 style={{ marginTop: 0, color: "#1e293b" }}>Placement Overview</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+              <div style={{ padding: '15px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <small style={{ color: '#64748b' }}>Total Companies</small>
+                <h3 style={{ margin: '5px 0 0 0', color: '#1e293b', fontSize: '24px' }}>{placementStats?.totalCompanies || 0}</h3>
+              </div>
+              <div style={{ padding: '15px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <small style={{ color: '#64748b' }}>Total Placed</small>
+                <h3 style={{ margin: '5px 0 0 0', color: '#10b981', fontSize: '24px' }}>{placementStats?.totalPlaced || 0}</h3>
+              </div>
+              <div style={{ padding: '15px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <small style={{ color: '#64748b' }}>Highest Package</small>
+                <h3 style={{ margin: '5px 0 0 0', color: '#3b82f6', fontSize: '24px' }}>{placementStats?.maxPackage || 0} LPA</h3>
+              </div>
+              <div style={{ padding: '15px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <small style={{ color: '#64748b' }}>Avg Package</small>
+                <h3 style={{ margin: '5px 0 0 0', color: '#f59e0b', fontSize: '24px' }}>{placementStats?.avgPackage || 0} LPA</h3>
+              </div>
+            </div>
+
+            <h3 style={{ color: "#1e293b" }}>Add New Company</h3>
+            <form onSubmit={handleAddCompany}>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={formLabelStyle}>Company Name</label>
+                <input type="text" placeholder="e.g. Google" value={compName} onChange={(e) => setCompName(e.target.value)} required style={formInputStyle} />
+              </div>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={formLabelStyle}>Website</label>
+                <input type="text" placeholder="https://careers.google.com" value={compWebsite} onChange={(e) => setCompWebsite(e.target.value)} style={formInputStyle} />
+              </div>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={formLabelStyle}>Description</label>
+                <textarea placeholder="Global tech leader..." value={compDesc} onChange={(e) => setCompDesc(e.target.value)} style={{ ...formInputStyle, height: '60px', resize: 'none' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+                <div>
+                  <label style={formLabelStyle}>Min CGPA</label>
+                  <input type="number" step="0.1" value={compMinCGPA} onChange={(e) => setCompMinCGPA(e.target.value)} style={formInputStyle} />
+                </div>
+                <div>
+                  <label style={formLabelStyle}>Allowed Branches</label>
+                  <input type="text" placeholder="CSE, ECE" value={compBranches} onChange={(e) => setCompBranches(e.target.value)} style={formInputStyle} />
+                </div>
+              </div>
+              <button type="submit" disabled={submittingCompany} style={saveBtnStyle}>
+                {submittingCompany ? "Adding..." : "Add Company"}
+              </button>
+            </form>
+          </div>
+
+          <div style={detailsBlockStyle}>
+            <h3 style={{ marginTop: 0, color: "#1e293b" }}>Registered Companies</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '500px', overflowY: 'auto' }}>
+              {companies.map(comp => (
+                <div key={comp._id} style={{ padding: '15px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                  <h4 style={{ margin: '0 0 5px 0', color: '#1e293b' }}>{comp.name}</h4>
+                  <small style={{ color: '#64748b', display: 'block', marginBottom: '8px' }}>{comp.website}</small>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#475569' }}>Min CGPA: {comp.eligibility?.minCGPA || 'N/A'} • Branches: {comp.eligibility?.allowedBranches?.join(', ') || 'All'}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
       {/* Manage Departments Tab */}
       {activeTab === "departments" && (
         <div style={detailsBlockStyle}>
@@ -497,7 +652,11 @@ const activeTabStyle = {
 
 const statsGridStyle = {
   display: "grid",
+<<<<<<< HEAD
   gridTemplateColumns: "repeat(4, 1fr)",
+=======
+  gridTemplateColumns: "repeat(3, 1fr)",
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
   gap: "20px",
   marginBottom: "24px"
 };

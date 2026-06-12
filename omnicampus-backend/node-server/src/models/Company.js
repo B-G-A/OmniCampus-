@@ -15,6 +15,10 @@ const companySchema = new mongoose.Schema({
   eligibility: {
     minCGPA: { type: Number, default: 0 },
     allowedBranches: [{ type: String }],
+<<<<<<< HEAD
+=======
+    maxBacklogs: { type: Number, default: 0 },
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
   },
   recruitmentProcess: [{ type: String }],
   visitedYears: [{ type: Number }],

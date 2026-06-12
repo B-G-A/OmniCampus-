@@ -41,6 +41,13 @@ class QueryRequest(BaseModel):
         default_factory=list,
         description="Previous conversation turns (list of {role, content} dicts).",
     )
+<<<<<<< HEAD
+=======
+    user_context: dict | None = Field(
+        default=None,
+        description="Student profile, marks, and attendance stats.",
+    )
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
 
 class QueryResponse(BaseModel):
@@ -51,6 +58,12 @@ class QueryResponse(BaseModel):
     found_in_materials: bool = False
     used_external: bool = False
     prompt_external: bool = False
+<<<<<<< HEAD
+=======
+    confidence_score: float = 0.0
+    page_number: str | None = None
+    related_topics: list[str] = Field(default_factory=list)
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
 
 # ── Document Deletion ────────────────────────────────────────────────────

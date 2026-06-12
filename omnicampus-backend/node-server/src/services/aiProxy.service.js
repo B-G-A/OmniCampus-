@@ -31,7 +31,18 @@ const ingestDocument = async ({ filePath, fileType, materialId, subjectId, semes
   try {
     const response = await aiClient.post(
       '/ingest',
+<<<<<<< HEAD
       { filePath, fileType, materialId, subjectId, semesterId, collectionName },
+=======
+      {
+        file_path: filePath,
+        file_type: fileType,
+        material_id: materialId,
+        subject_id: subjectId,
+        semester_id: semesterId,
+        collection_name: collectionName
+      },
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
       { timeout: 120_000 }
     );
     return response.data;
@@ -44,11 +55,26 @@ const ingestDocument = async ({ filePath, fileType, materialId, subjectId, semes
  * Query the RAG pipeline.
  * 30-second timeout — queries should be fast once the index is built.
  */
+<<<<<<< HEAD
 const queryRAG = async ({ message, collectionName, subjectId, allowExternal = false, chatHistory = [] }) => {
   try {
     const response = await aiClient.post(
       '/query',
       { message, collectionName, subjectId, allowExternal, chatHistory },
+=======
+const queryRAG = async ({ message, collectionName, subjectId, allowExternal = false, chatHistory = [], userContext = {} }) => {
+  try {
+    const response = await aiClient.post(
+      '/query',
+      {
+        message,
+        collection_name: collectionName,
+        subject_id: subjectId,
+        allow_external: allowExternal,
+        chat_history: chatHistory,
+        user_context: userContext
+      },
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
       { timeout: 30_000 }
     );
     return response.data;
@@ -77,7 +103,11 @@ const deleteCollection = async (collectionName) => {
 const deleteDocuments = async (materialId, collectionName) => {
   try {
     const response = await aiClient.delete('/documents', {
+<<<<<<< HEAD
       data: { materialId, collectionName },
+=======
+      data: { material_id: materialId, collection_name: collectionName },
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
       timeout: 30_000,
     });
     return response.data;

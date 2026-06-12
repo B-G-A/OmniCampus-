@@ -89,6 +89,14 @@ const userSchema = new mongoose.Schema(
       default: 'CSE',
     },
 
+<<<<<<< HEAD
+=======
+    backlogs: {
+      type: Number,
+      default: 0,
+    },
+
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     attendance: {
       type: Number,
       default: 85,

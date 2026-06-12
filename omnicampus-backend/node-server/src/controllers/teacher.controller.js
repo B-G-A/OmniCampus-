@@ -7,7 +7,14 @@
 const Subject = require('../models/Subject');
 const Material = require('../models/Material');
 const ChatHistory = require('../models/ChatHistory');
+<<<<<<< HEAD
 const { AppError } = require('../middleware/errorHandler');
+=======
+const Attendance = require('../models/Attendance');
+const Mark = require('../models/Mark');
+const { AppError } = require('../middleware/errorHandler');
+const { createBulkNotifications } = require('./notification.controller');
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
 /**
  * GET /api/teacher/dashboard
@@ -119,9 +126,108 @@ const getActivity = async (req, res, next) => {
   }
 };
 
+<<<<<<< HEAD
+=======
+/**
+ * POST /api/teacher/attendance
+ * Bulk save attendance records for a subject.
+ */
+const saveAttendance = async (req, res, next) => {
+  try {
+    const { subjectId, date, records } = req.body;
+    
+    // records: [{ student: id, status: 'Present'/'Absent' }, ...]
+    const parsedDate = new Date(date);
+    parsedDate.setHours(0, 0, 0, 0);
+
+    const operations = records.map(record => ({
+      updateOne: {
+        filter: { student: record.student, subject: subjectId, date: parsedDate },
+        update: { $set: { status: record.status } },
+        upsert: true
+      }
+    }));
+
+    if (operations.length > 0) {
+      await Attendance.bulkWrite(operations);
+    }
+
+    // Fire notifications to affected students
+    const subject = await Subject.findById(subjectId).select('name');
+    const studentIds = records.map(r => r.student);
+    createBulkNotifications(studentIds, {
+      type: 'attendance',
+      title: 'Attendance Updated',
+      message: `Attendance for ${subject?.name || 'a subject'} on ${parsedDate.toLocaleDateString()} has been recorded.`,
+      relatedId: subjectId,
+    });
+
+    res.json({ success: true, message: 'Attendance saved successfully.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/teacher/marks
+ * Bulk save marks for a subject.
+ */
+const saveMarks = async (req, res, next) => {
+  try {
+    const { subjectId, marks } = req.body;
+
+    // Support both old fields (midTerm/endTerm/practical) and new fields (internal1/internal2/assignment/total/grade)
+    const operations = marks.map(m => {
+      const updateFields = {};
+      // Old fields — preserve backward compat
+      if (m.midTerm !== undefined) updateFields.midTerm = m.midTerm;
+      if (m.endTerm !== undefined) updateFields.endTerm = m.endTerm;
+      if (m.practical !== undefined) updateFields.practical = m.practical;
+      // New detailed fields
+      if (m.internal1 !== undefined) updateFields.internal1 = m.internal1;
+      if (m.internal2 !== undefined) updateFields.internal2 = m.internal2;
+      if (m.assignment !== undefined) updateFields.assignment = m.assignment;
+      if (m.total !== undefined) updateFields.total = m.total;
+      if (m.grade !== undefined) updateFields.grade = m.grade;
+
+      return {
+        updateOne: {
+          filter: { student: m.student, subject: subjectId },
+          update: { $set: updateFields },
+          upsert: true
+        }
+      };
+    });
+
+    if (operations.length > 0) {
+      await Mark.bulkWrite(operations);
+    }
+
+    // Fire notifications to affected students
+    const subject = await Subject.findById(subjectId).select('name');
+    const studentIds = marks.map(m => m.student);
+    createBulkNotifications(studentIds, {
+      type: 'marks',
+      title: 'Marks Updated',
+      message: `Marks for ${subject?.name || 'a subject'} have been updated by your teacher.`,
+      relatedId: subjectId,
+    });
+
+    res.json({ success: true, message: 'Marks saved successfully.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 module.exports = {
   getDashboard,
   getTeacherSubjects,
   getTeacherStudents,
   getActivity,
+<<<<<<< HEAD
+=======
+  saveAttendance,
+  saveMarks,
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 };

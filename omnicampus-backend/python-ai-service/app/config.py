@@ -23,7 +23,11 @@ class _Settings:
 
     # ── Ollama ───────────────────────────────────────────────────────
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+<<<<<<< HEAD
     OLLAMA_LLM_MODEL: str = os.getenv("OLLAMA_LLM_MODEL", "llama3")
+=======
+    OLLAMA_LLM_MODEL: str = os.getenv("OLLAMA_LLM_MODEL", "tinyllama")
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     OLLAMA_EMBED_MODEL: str = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 
     # ── ChromaDB ─────────────────────────────────────────────────────

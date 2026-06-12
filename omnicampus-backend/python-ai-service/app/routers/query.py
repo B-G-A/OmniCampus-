@@ -69,6 +69,10 @@ async def query_materials(req: QueryRequest):
             answer = llm.generate_general_response(
                 query=req.message,
                 chat_history=req.chat_history,
+<<<<<<< HEAD
+=======
+                user_context=req.user_context,
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
             )
         except Exception as exc:
             logger.error("External LLM call failed: %s", exc)
@@ -83,11 +87,29 @@ async def query_materials(req: QueryRequest):
     # 4 ─ Build context from relevant chunks
     context_parts: list[str] = []
     source_set: set[str] = set()
+<<<<<<< HEAD
 
     for doc, meta in zip(documents, metadatas):
         source = meta.get("source_file", "unknown")
         source_set.add(source)
         context_parts.append(f"[Source: {source}]\n{doc}")
+=======
+    best_page_number = None
+    confidence_score = 0.0
+
+    if distances:
+        # Cosine distance typically [0, 2], where 0 is exact match.
+        confidence_score = max(0.0, 1.0 - (distances[0] / 2.0))
+
+    for idx, (doc, meta) in enumerate(zip(documents, metadatas)):
+        source = meta.get("source_file", "unknown")
+        source_set.add(source)
+        context_parts.append(f"[Source: {source}]\n{doc}")
+        
+        # Grab the page number from the best (first) chunk if available
+        if idx == 0 and ("page" in meta or "page_number" in meta):
+            best_page_number = str(meta.get("page", meta.get("page_number")))
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
     context = "\n\n---\n\n".join(context_parts)
 
@@ -97,7 +119,13 @@ async def query_materials(req: QueryRequest):
             query=req.message,
             context=context,
             chat_history=req.chat_history,
+<<<<<<< HEAD
         )
+=======
+            user_context=req.user_context,
+        )
+        related_topics = llm.generate_related_topics(query=req.message, context=context)
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     except Exception as exc:
         logger.error("RAG LLM call failed: %s", exc)
         raise HTTPException(status_code=502, detail="LLM service unavailable.") from exc
@@ -106,6 +134,12 @@ async def query_materials(req: QueryRequest):
         answer=answer,
         sources=sorted(source_set),
         found_in_materials=True,
+<<<<<<< HEAD
+=======
+        confidence_score=round(confidence_score * 100, 2),
+        page_number=best_page_number,
+        related_topics=related_topics,
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     )
 
 

@@ -9,9 +9,25 @@ function StudentDashboard() {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
 
+<<<<<<< HEAD
   // Resume Analyzer state
   const [resumeText, setResumeText] = useState("");
   const [resumeResult, setResumeResult] = useState(null);
+=======
+  // Academics state
+  const [selectedSubject, setSelectedSubject] = useState(null);
+  const [subjectMaterials, setSubjectMaterials] = useState([]);
+  const [attendance, setAttendance] = useState([]);
+  const [marks, setMarks] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [assignFile, setAssignFile] = useState(null);
+  const [uploadingAssignment, setUploadingAssignment] = useState(false);
+
+  // Resume Analyzer state
+  const [resumeFile, setResumeFile] = useState(null);
+  const [resumeResult, setResumeResult] = useState(null);
+  const [resumeHistory, setResumeHistory] = useState([]);
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
   const [analyzing, setAnalyzing] = useState(false);
 
   // Placements state
@@ -37,12 +53,29 @@ function StudentDashboard() {
     const fetchData = async () => {
       setLoading(true);
       try {
+<<<<<<< HEAD
         const [subRes, compRes] = await Promise.all([
           api.get("/student/subjects"),
           api.get("/placement/companies")
         ]);
         if (subRes && subRes.success) setSubjects(subRes.data);
         if (compRes && compRes.success) setCompanies(compRes.data);
+=======
+        const [subRes, compRes, attRes, marksRes, resumeRes, assignmentsRes] = await Promise.all([
+          api.get("/student/subjects"),
+          api.get("/placement/companies"),
+          api.get("/student/attendance"),
+          api.get("/student/marks"),
+          api.get("/student/resume/history"),
+          api.get("/assignments/student")
+        ]);
+        if (subRes && subRes.success) setSubjects(subRes.data);
+        if (compRes && compRes.success) setCompanies(compRes.data);
+        if (attRes && attRes.success) setAttendance(attRes.data);
+        if (marksRes && marksRes.success) setMarks(marksRes.data);
+        if (resumeRes && resumeRes.success) setResumeHistory(resumeRes.data);
+        if (assignmentsRes && assignmentsRes.success) setAssignments(assignmentsRes.data);
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
       } catch (err) {
         console.error("Failed to fetch student data:", err);
       } finally {
@@ -61,6 +94,7 @@ function StudentDashboard() {
     });
   };
 
+<<<<<<< HEAD
   const handleAnalyzeResume = (e) => {
     e.preventDefault();
     if (!resumeText.trim()) return;
@@ -83,6 +117,53 @@ function StudentDashboard() {
       });
       setAnalyzing(false);
     }, 1500);
+=======
+  const handleSubmitAssignment = async (e, assignmentId) => {
+    e.preventDefault();
+    if (!assignFile) return;
+    setUploadingAssignment(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", assignFile);
+      const res = await api.upload(`/assignments/${assignmentId}/submit`, formData);
+      if (res && res.success) {
+        alert("Assignment submitted successfully!");
+        setAssignFile(null);
+        // Refresh assignments
+        const assignmentsRes = await api.get("/assignments/student");
+        if (assignmentsRes && assignmentsRes.success) setAssignments(assignmentsRes.data);
+      }
+    } catch (err) {
+      alert("Failed to submit assignment.");
+      console.error(err);
+    } finally {
+      setUploadingAssignment(false);
+    }
+  };
+
+  const handleAnalyzeResume = async (e) => {
+    e.preventDefault();
+    if (!resumeFile) return;
+    setAnalyzing(true);
+    setResumeResult(null);
+
+    const formData = new FormData();
+    formData.append("file", resumeFile);
+
+    try {
+      const res = await api.upload("/student/resume/analyze", formData);
+      if (res && res.success) {
+        setResumeResult(res.data);
+        const historyRes = await api.get("/student/resume/history");
+        if (historyRes && historyRes.success) setResumeHistory(historyRes.data);
+      }
+    } catch (err) {
+      alert("Failed to analyze resume. Make sure the AI service is running.");
+      console.error(err);
+    } finally {
+      setAnalyzing(false);
+    }
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
   };
 
   const handleApplyCompany = (companyName) => {
@@ -142,8 +223,17 @@ function StudentDashboard() {
     return <div className="main"><h3>Loading portal data...</h3></div>;
   }
 
+<<<<<<< HEAD
   // Calculate stats
   const eligibleCount = companies.filter(calculateEligibility).length;
+=======
+  // Attendance parsing (handle both new and old structure)
+  const attendanceRecords = attendance?.records || (Array.isArray(attendance) ? attendance : []);
+  const attendanceStats = attendance?.stats || null;
+
+  // Calculate stats
+  const eligibleCount = companies.filter(c => c.eligibilityStatus === 'Eligible').length;
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
   return (
     <div className="main" style={mainStyle}>
@@ -167,6 +257,12 @@ function StudentDashboard() {
         <button onClick={() => setActiveTab("academics")} style={activeTab === "academics" ? activeTabStyle : tabStyle}>
           📚 Academics
         </button>
+<<<<<<< HEAD
+=======
+        <button onClick={() => setActiveTab("assignments")} style={activeTab === "assignments" ? activeTabStyle : tabStyle}>
+          📝 Assignments
+        </button>
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
         <button onClick={() => setActiveTab("placements")} style={activeTab === "placements" ? activeTabStyle : tabStyle}>
           💼 Placement Hub
         </button>
@@ -188,7 +284,11 @@ function StudentDashboard() {
           <div style={statsGridStyle}>
             <div style={statCardStyle("linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)")}>
               <small>Attendance</small>
+<<<<<<< HEAD
               <h3>{user?.attendance || 89}%</h3>
+=======
+              <h3>{attendanceStats?.overallPercentage ?? user?.attendance ?? 0}%</h3>
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
               <p>Overall attendance</p>
             </div>
             <div style={statCardStyle("linear-gradient(135deg, #10b981 0%, #047857 100%)")}>
@@ -246,6 +346,74 @@ function StudentDashboard() {
       )}
 
       {activeTab === "academics" && (
+<<<<<<< HEAD
+=======
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        
+        {/* Attendance & Marks Section */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+          <div style={detailsBlockStyle}>
+            <h3 style={{ marginTop: 0, color: "#1e293b" }}>My Attendance</h3>
+            <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+              {attendanceRecords.length === 0 ? <p style={{color: "#64748b", fontSize: "14px"}}>No attendance records.</p> : (
+                <table style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                      <th style={{ padding: "8px", color: "#475569", fontSize: "13px" }}>Date</th>
+                      <th style={{ padding: "8px", color: "#475569", fontSize: "13px" }}>Subject</th>
+                      <th style={{ padding: "8px", color: "#475569", fontSize: "13px" }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendanceRecords.map(a => (
+                      <tr key={a._id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "8px", fontSize: "13px" }}>{new Date(a.date).toLocaleDateString()}</td>
+                        <td style={{ padding: "8px", fontSize: "13px" }}>{a.subject?.name}</td>
+                        <td style={{ padding: "8px", fontSize: "13px", color: a.status === "Present" ? "#10b981" : "#ef4444" }}>
+                          {a.status}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+          
+          <div style={detailsBlockStyle}>
+            <h3 style={{ marginTop: 0, color: "#1e293b" }}>My Marks</h3>
+            <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+              {marks.length === 0 ? <p style={{color: "#64748b", fontSize: "14px"}}>No marks available.</p> : (
+                <table style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                      <th style={{ padding: "8px", color: "#475569", fontSize: "13px" }}>Subject</th>
+                      <th style={{ padding: "8px", color: "#475569", fontSize: "13px" }}>Internal 1</th>
+                      <th style={{ padding: "8px", color: "#475569", fontSize: "13px" }}>Internal 2</th>
+                      <th style={{ padding: "8px", color: "#475569", fontSize: "13px" }}>Assignment</th>
+                      <th style={{ padding: "8px", color: "#475569", fontSize: "13px" }}>Total</th>
+                      <th style={{ padding: "8px", color: "#475569", fontSize: "13px" }}>Grade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {marks.map(m => (
+                      <tr key={m._id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "8px", fontSize: "13px" }}>{m.subject?.name}</td>
+                        <td style={{ padding: "8px", fontSize: "13px" }}>{m.internal1 ?? m.midTerm ?? '-'}</td>
+                        <td style={{ padding: "8px", fontSize: "13px" }}>{m.internal2 ?? m.endTerm ?? '-'}</td>
+                        <td style={{ padding: "8px", fontSize: "13px" }}>{m.assignment ?? m.practical ?? '-'}</td>
+                        <td style={{ padding: "8px", fontSize: "13px", fontWeight: "600" }}>{m.total ?? '-'}</td>
+                        <td style={{ padding: "8px", fontSize: "13px", fontWeight: "bold" }}>{m.grade ?? '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
         <div style={detailsBlockStyle}>
           <h3 style={{ marginTop: 0, color: "#1e293b" }}>Your Enrolled Subjects</h3>
           <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "20px" }}>
@@ -253,7 +421,26 @@ function StudentDashboard() {
           </p>
           <div style={subjectGridStyle}>
             {subjects.map((sub) => (
+<<<<<<< HEAD
               <div key={sub._id} style={subjectCardStyle(sub.bannerColor || "linear-gradient(135deg, #4f46e5, #3730a3)")}>
+=======
+              <div 
+                key={sub._id} 
+                style={{...subjectCardStyle(sub.bannerColor || "linear-gradient(135deg, #4f46e5, #3730a3)"), cursor: "pointer"}}
+                onClick={async () => {
+                  setSelectedSubject(sub);
+                  setSubjectMaterials([]);
+                  try {
+                    const res = await api.get(`/materials?subjectId=${sub._id}`);
+                    if (res && res.success) {
+                      setSubjectMaterials(res.data);
+                    }
+                  } catch (err) {
+                    console.error("Failed to fetch materials:", err);
+                  }
+                }}
+              >
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                 <div style={{ padding: "20px", color: "white" }}>
                   <small style={{ fontSize: "11px", opacity: 0.8, textTransform: "uppercase" }}>{sub.code}</small>
                   <h4 style={{ margin: "4px 0 8px 0", fontSize: "18px", fontWeight: "700" }}>{sub.name}</h4>
@@ -262,12 +449,111 @@ function StudentDashboard() {
                   </p>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.2)", paddingTop: "12px", fontSize: "12px" }}>
                     <span>Faculty: {sub.teacher?.name || "Dr. Sharma"}</span>
+<<<<<<< HEAD
                     <span>Notes: {sub.materials?.length || 0}</span>
+=======
+                    <span>Click to view materials</span>
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                   </div>
                 </div>
               </div>
             ))}
           </div>
+<<<<<<< HEAD
+=======
+
+          {selectedSubject && (
+            <div style={{ marginTop: "30px", borderTop: "1px solid #e2e8f0", paddingTop: "20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <h4 style={{ margin: 0, color: "#1e293b", fontSize: "18px" }}>Materials for {selectedSubject.name}</h4>
+                <button onClick={() => setSelectedSubject(null)} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#64748b" }}>✕ Close</button>
+              </div>
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {subjectMaterials.length === 0 ? (
+                  <p style={{ color: "#64748b", fontSize: "14px" }}>No materials uploaded yet.</p>
+                ) : (
+                  subjectMaterials.map((mat) => (
+                    <div key={mat._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px" }}>
+                      <div>
+                        <strong style={{ display: "block", color: "#1e293b", marginBottom: "4px" }}>{mat.title}</strong>
+                        <small style={{ color: "#64748b" }}>{mat.fileType.toUpperCase()} • {(mat.fileSize / 1024 / 1024).toFixed(2)} MB</small>
+                      </div>
+                      <button 
+                        onClick={() => alert("File downloaded: " + mat.fileName)} 
+                        style={{ padding: "6px 12px", background: "#3b82f6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}
+                      >
+                        Download
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+        </div>
+      )}
+
+      {activeTab === "assignments" && (
+        <div style={detailsBlockStyle}>
+          <h3 style={{ marginTop: 0, color: "#1e293b" }}>Pending & Submitted Assignments</h3>
+          <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "20px" }}>
+            Submit your solutions before the due date.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {assignments.length === 0 ? (
+              <p style={{ color: "#64748b" }}>No assignments found.</p>
+            ) : (
+              assignments.map(a => (
+                <div key={a._id} style={{ padding: "16px", border: "1px solid #e2e8f0", borderRadius: "12px", background: "#f8fafc" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+                    <div>
+                      <strong style={{ fontSize: "16px", color: "#1e293b" }}>{a.title}</strong>
+                      <small style={{ display: "block", color: "#64748b", marginTop: "4px" }}>Course: {a.subject?.name}</small>
+                      {a.fileName && <small style={{ display: "block", color: "#3b82f6", marginTop: "4px", cursor: "pointer" }} onClick={() => alert("Downloading: " + a.fileName)}>📎 {a.fileName} (Click to download)</small>}
+                    </div>
+                    {a.mySubmission ? (
+                      <span style={badgeStyle("#d1fae5", "#065f46")}>Submitted</span>
+                    ) : (
+                      <span style={badgeStyle("#fee2e2", "#991b1b")}>Pending</span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: "14px", color: "#475569", margin: "10px 0" }}>{a.description}</p>
+                  <small style={{ color: "#475569", fontWeight: "600" }}>Due Date: {new Date(a.dueDate).toLocaleDateString()}</small>
+                  
+                  {a.mySubmission ? (
+                    <div style={{ marginTop: "16px", padding: "12px", background: "white", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                      <strong style={{ display: "block", color: "#10b981", fontSize: "14px", marginBottom: "8px" }}>✓ You have submitted this assignment</strong>
+                      {a.mySubmission.grade ? (
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={badgeStyle("#dbeafe", "#1e40af")}>Grade: {a.mySubmission.grade}</span>
+                          <small style={{ color: "#475569", fontStyle: "italic" }}>"{a.mySubmission.feedback}"</small>
+                        </div>
+                      ) : (
+                        <small style={{ color: "#64748b" }}>Not graded yet.</small>
+                      )}
+                    </div>
+                  ) : (
+                    <form onSubmit={(e) => handleSubmitAssignment(e, a._id)} style={{ marginTop: "16px", padding: "12px", background: "white", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                        <input
+                          type="file"
+                          onChange={(e) => setAssignFile(e.target.files[0])}
+                          required
+                          style={{ padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px", flex: 1 }}
+                        />
+                        <button type="submit" disabled={uploadingAssignment} style={{ padding: "10px 16px", background: "#2563eb", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "600" }}>
+                          {uploadingAssignment ? "Submitting..." : "Upload Solution"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
         </div>
       )}
 
@@ -280,7 +566,11 @@ function StudentDashboard() {
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {companies.map((comp) => {
+<<<<<<< HEAD
                 const eligible = calculateEligibility(comp);
+=======
+                const eligible = comp.eligibilityStatus === 'Eligible';
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                 const applied = appliedCompanies.has(comp.name);
                 return (
                   <div key={comp._id} style={companyItemStyle(selectedCompany?._id === comp._id)}>
@@ -290,12 +580,22 @@ function StudentDashboard() {
                         {eligible ? (
                           <span style={badgeStyle("#d1fae5", "#065f46")}>Eligible</span>
                         ) : (
+<<<<<<< HEAD
                           <span style={badgeStyle("#fee2e2", "#991b1b")}>Ineligible</span>
+=======
+                          <span style={badgeStyle("#fee2e2", "#991b1b")} title={comp.ineligibilityReason}>Ineligible</span>
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                         )}
                       </h4>
                       <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 6px 0' }}>
                         {comp.description}
                       </p>
+<<<<<<< HEAD
+=======
+                      {comp.ineligibilityReason && !eligible && (
+                        <small style={{ color: '#ef4444', display: 'block', marginBottom: '6px' }}>Reason: {comp.ineligibilityReason}</small>
+                      )}
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                       <small style={{ color: '#475569', fontWeight: '500' }}>
                         Package: {comp.rolesOffered?.map(r => `${r.title} (${r.packageLPA} LPA)`).join(", ") || "N/A"}
                       </small>
@@ -391,6 +691,7 @@ function StudentDashboard() {
           </p>
 
           <form onSubmit={handleAnalyzeResume} style={{ marginBottom: "24px" }}>
+<<<<<<< HEAD
             <textarea
               placeholder="Paste your plain text resume details (experience, education, skills, projects)..."
               value={resumeText}
@@ -400,6 +701,17 @@ function StudentDashboard() {
             />
             <button type="submit" disabled={analyzing} style={analyzeBtnStyle}>
               {analyzing ? "Analyzing Resume Content..." : "Run AI Analysis"}
+=======
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => setResumeFile(e.target.files[0])}
+              required
+              style={{ marginBottom: "12px", display: "block" }}
+            />
+            <button type="submit" disabled={analyzing} style={analyzeBtnStyle}>
+              {analyzing ? "Analyzing Resume PDF..." : "Upload & Run AI Analysis"}
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
             </button>
           </form>
 
@@ -408,6 +720,7 @@ function StudentDashboard() {
               <h4 style={{ margin: "0 0 16px 0", color: "#1e293b", fontSize: "18px", borderBottom: "1px solid #e2e8f0", paddingBottom: "10px" }}>
                 Analysis Results
               </h4>
+<<<<<<< HEAD
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
                 <div style={analysisMetricBoxStyle}>
                   <small style={{ color: "#64748b" }}>Overall ATS Score</small>
@@ -425,17 +738,49 @@ function StudentDashboard() {
                   {resumeResult.keywordsMatched.map(kw => (
                     <span key={kw} style={keywordTagStyle}>{kw}</span>
                   ))}
+=======
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "20px", marginBottom: "20px" }}>
+                <div style={analysisMetricBoxStyle}>
+                  <small style={{ color: "#64748b" }}>Overall Score</small>
+                  <h3 style={{ fontSize: "28px", color: "#3b82f6", margin: "4px 0" }}>{resumeResult.overallScore ?? resumeResult.score}/100</h3>
+                </div>
+                <div style={analysisMetricBoxStyle}>
+                  <small style={{ color: "#64748b" }}>ATS Compatibility</small>
+                  <h3 style={{ fontSize: "28px", color: "#10b981", margin: "4px 0" }}>{resumeResult.atsScore}/100</h3>
+                </div>
+                <div style={analysisMetricBoxStyle}>
+                  <small style={{ color: "#64748b" }}>Tech Skills Score</small>
+                  <h3 style={{ fontSize: "28px", color: "#8b5cf6", margin: "4px 0" }}>{resumeResult.technicalSkillsScore}/100</h3>
+                </div>
+                <div style={analysisMetricBoxStyle}>
+                  <small style={{ color: "#64748b" }}>Projects Score</small>
+                  <h3 style={{ fontSize: "28px", color: "#f59e0b", margin: "4px 0" }}>{resumeResult.projectsScore}/100</h3>
+                </div>
+                <div style={analysisMetricBoxStyle}>
+                  <small style={{ color: "#64748b" }}>Experience Score</small>
+                  <h3 style={{ fontSize: "28px", color: "#ec4899", margin: "4px 0" }}>{resumeResult.experienceScore}/100</h3>
+                </div>
+                <div style={analysisMetricBoxStyle}>
+                  <small style={{ color: "#64748b" }}>Grammar Score</small>
+                  <h3 style={{ fontSize: "28px", color: "#06b6d4", margin: "4px 0" }}>{resumeResult.grammarScore}/100</h3>
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                 </div>
               </div>
 
               <div style={{ marginBottom: "16px" }}>
                 <strong style={{ display: "block", marginBottom: "6px", color: "#16a34a" }}>Key Strengths:</strong>
                 <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "14px", color: "#475569" }}>
+<<<<<<< HEAD
                   {resumeResult.positives.map((p, i) => <li key={i} style={{ marginBottom: "4px" }}>{p}</li>)}
+=======
+                  {resumeResult.strengths?.map((p, i) => <li key={i} style={{ marginBottom: "4px" }}>{p}</li>) ||
+                   resumeResult.positives?.map((p, i) => <li key={i} style={{ marginBottom: "4px" }}>{p}</li>)}
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                 </ul>
               </div>
 
               <div style={{ marginBottom: "16px" }}>
+<<<<<<< HEAD
                 <strong style={{ display: "block", marginBottom: "6px", color: "#dc2626" }}>Gaps to Address:</strong>
                 <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "14px", color: "#475569" }}>
                   {resumeResult.gaps.map((g, i) => <li key={i} style={{ marginBottom: "4px" }}>{g}</li>)}
@@ -445,6 +790,40 @@ function StudentDashboard() {
               <div>
                 <strong style={{ display: "block", marginBottom: "4px", color: "#334155" }}>Formatting Recommendation:</strong>
                 <p style={{ margin: 0, fontSize: "14px", color: "#475569", lineHeight: "1.5" }}>{resumeResult.recommendations}</p>
+=======
+                <strong style={{ display: "block", marginBottom: "6px", color: "#dc2626" }}>Weaknesses & Gaps:</strong>
+                <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "14px", color: "#475569" }}>
+                  {resumeResult.weaknesses?.map((g, i) => <li key={i} style={{ marginBottom: "4px" }}>{g}</li>) ||
+                   resumeResult.gaps?.map((g, i) => <li key={i} style={{ marginBottom: "4px" }}>{g}</li>)}
+                </ul>
+              </div>
+
+              <div style={{ marginBottom: "16px" }}>
+                <strong style={{ display: "block", marginBottom: "6px", color: "#0284c7" }}>Actionable Suggestions:</strong>
+                <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "14px", color: "#475569" }}>
+                  {resumeResult.suggestions?.map((s, i) => <li key={i} style={{ marginBottom: "4px" }}>{s}</li>) ||
+                   <li style={{ marginBottom: "4px" }}>{resumeResult.recommendations}</li>}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {resumeHistory.length > 0 && (
+            <div style={{ marginTop: "32px" }}>
+              <h4 style={{ color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>Resume History</h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "16px" }}>
+                {resumeHistory.map(history => (
+                  <div key={history._id} style={{ padding: "16px", border: "1px solid #e2e8f0", borderRadius: "8px", background: "white", cursor: "pointer" }} onClick={() => setResumeResult(history)}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <strong style={{ color: "#334155" }}>{history.fileName}</strong>
+                        <small style={{ display: "block", color: "#64748b", marginTop: "4px" }}>Analyzed on: {new Date(history.createdAt).toLocaleDateString()}</small>
+                      </div>
+                      <div style={badgeStyle("#dbeafe", "#1e40af")}>Score: {history.overallScore}/100</div>
+                    </div>
+                  </div>
+                ))}
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
               </div>
             </div>
           )}

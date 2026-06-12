@@ -15,8 +15,16 @@ const materialRoutes = require('./routes/material.routes');
 const chatRoutes = require('./routes/chat.routes');
 const teacherRoutes = require('./routes/teacher.routes');
 const studentRoutes = require('./routes/student.routes');
+<<<<<<< HEAD
 const placementRoutes = require('./routes/placement.routes');
 const adminRoutes = require('./routes/admin.routes');
+=======
+const resumeRoutes = require('./routes/resume.routes');
+const placementRoutes = require('./routes/placement.routes');
+const adminRoutes = require('./routes/admin.routes');
+const notificationRoutes = require('./routes/notification.routes');
+const assignmentRoutes = require('./routes/assignment.routes');
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
 const app = express();
 
@@ -55,6 +63,25 @@ const authLimiter = rateLimit({
 // Apply rate limiter specifically to auth endpoints
 app.use('/api/auth', authLimiter);
 
+<<<<<<< HEAD
+=======
+// ── AI Rate Limiting (resume + chat) ─────────────────────────────────────
+const aiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 10, // 10 AI requests per minute per IP
+  message: {
+    success: false,
+    message: 'Too many AI requests. Please wait a moment before trying again.',
+    code: 'AI_RATE_LIMIT_EXCEEDED',
+    statusCode: 429,
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/student/resume', aiLimiter);
+app.use('/api/chat', aiLimiter);
+
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 // ── Routes Mount ─────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/semesters', semesterRoutes);
@@ -63,8 +90,16 @@ app.use('/api/materials', materialRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/student', studentRoutes);
+<<<<<<< HEAD
 app.use('/api/placement', placementRoutes);
 app.use('/api/admin', adminRoutes);
+=======
+app.use('/api/student/resume', resumeRoutes);
+app.use('/api/placement', placementRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/assignments', assignmentRoutes);
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
 // Static directory for file downloads (if needed)
 app.use('/uploads', express.static(env.UPLOAD_DIR));

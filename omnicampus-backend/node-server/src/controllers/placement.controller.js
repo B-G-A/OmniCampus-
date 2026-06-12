@@ -184,12 +184,55 @@ const getDashboardStats = async (req, res, next) => {
 
 /**
  * GET /api/placement/companies
+<<<<<<< HEAD
  * List all companies.
+=======
+ * List all companies. If requested by a student, append eligibility status.
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
  */
 const listCompanies = async (req, res, next) => {
   try {
     await seedPlacementDataIfEmpty();
+<<<<<<< HEAD
     const companies = await Company.find().sort({ name: 1 });
+=======
+    const companies = await Company.find().sort({ name: 1 }).lean();
+
+    // If user is a student, attach eligibility calculation
+    if (req.user && req.user.role === 'student') {
+      const student = await require('../models/User').findById(req.user.id).select('cgpa department backlogs');
+      
+      companies.forEach(comp => {
+        let isEligible = true;
+        let reason = [];
+
+        if (student) {
+          const minCGPA = comp.eligibility?.minCGPA || 0;
+          if (student.cgpa < minCGPA) {
+            isEligible = false;
+            reason.push(`CGPA (${student.cgpa}) is below required ${minCGPA}`);
+          }
+
+          const allowedBranches = comp.eligibility?.allowedBranches || [];
+          if (allowedBranches.length > 0 && !allowedBranches.includes(student.department)) {
+            isEligible = false;
+            reason.push(`Branch (${student.department}) not eligible`);
+          }
+
+          const maxBacklogs = comp.eligibility?.maxBacklogs || 0;
+          const studentBacklogs = student.backlogs || 0;
+          if (studentBacklogs > maxBacklogs) {
+            isEligible = false;
+            reason.push(`Backlogs (${studentBacklogs}) exceed maximum allowed (${maxBacklogs})`);
+          }
+        }
+
+        comp.eligibilityStatus = isEligible ? 'Eligible' : 'Not Eligible';
+        comp.ineligibilityReason = isEligible ? null : reason.join(' | ');
+      });
+    }
+
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     res.json({ success: true, data: companies });
   } catch (error) {
     next(error);

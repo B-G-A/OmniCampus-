@@ -9,6 +9,11 @@ const ChatHistory = require('../models/ChatHistory');
 const Subject = require('../models/Subject');
 const Semester = require('../models/Semester');
 const aiProxy = require('../services/aiProxy.service');
+<<<<<<< HEAD
+=======
+const Attendance = require('../models/Attendance');
+const Mark = require('../models/Mark');
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 const { AppError } = require('../middleware/errorHandler');
 
 /**
@@ -54,6 +59,24 @@ const sendQuery = async (req, res, next) => {
       content: m.content,
     }));
 
+<<<<<<< HEAD
+=======
+    // Fetch context
+    const attendances = await Attendance.find({ student: req.user.id, subject: subjectId });
+    const marks = await Mark.find({ student: req.user.id, subject: subjectId });
+    
+    let totalClasses = attendances.length;
+    let presentClasses = attendances.filter(a => a.status === 'Present').length;
+    const attPercentage = totalClasses > 0 ? ((presentClasses / totalClasses) * 100).toFixed(1) + '%' : 'N/A';
+
+    const userContext = {
+      name: req.user.name || 'Student',
+      subject: subject.name,
+      attendance: attPercentage,
+      marks: marks.length > 0 ? marks[0] : 'No marks uploaded yet'
+    };
+
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     // Call AI RAG service
     const aiResponse = await aiProxy.queryRAG({
       message,
@@ -61,6 +84,10 @@ const sendQuery = async (req, res, next) => {
       subjectId: subjectId,
       allowExternal: allowExternal || false,
       chatHistory: recentMessages,
+<<<<<<< HEAD
+=======
+      userContext
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     });
 
     // Save user message
@@ -71,10 +98,25 @@ const sendQuery = async (req, res, next) => {
       usedExternalSearch: false,
     });
 
+<<<<<<< HEAD
     // Save assistant response
     chatSession.messages.push({
       role: 'assistant',
       content: aiResponse.answer || aiResponse.response || '',
+=======
+    let finalAnswer = aiResponse.answer || aiResponse.response || '';
+    if (!finalAnswer && aiResponse.prompt_external) {
+      finalAnswer = "I couldn't find an answer in your course materials. Would you like me to search my general knowledge? (Note: External search is currently disabled in the UI)";
+    }
+    if (!finalAnswer) {
+      finalAnswer = "I'm sorry, I couldn't generate an answer at this time.";
+    }
+
+    // Save assistant response
+    chatSession.messages.push({
+      role: 'assistant',
+      content: finalAnswer,
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
       sources: aiResponse.sources || [],
       usedExternalSearch: aiResponse.usedExternalSearch || false,
     });
@@ -84,9 +126,18 @@ const sendQuery = async (req, res, next) => {
     res.json({
       success: true,
       data: {
+<<<<<<< HEAD
         answer: aiResponse.answer || aiResponse.response || '',
         sources: aiResponse.sources || [],
         usedExternalSearch: aiResponse.usedExternalSearch || false,
+=======
+        answer: finalAnswer,
+        sources: aiResponse.sources || [],
+        usedExternalSearch: aiResponse.used_external || aiResponse.usedExternalSearch || false,
+        confidence_score: aiResponse.confidence_score || 0,
+        page_number: aiResponse.page_number || null,
+        related_topics: aiResponse.related_topics || [],
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
       },
     });
   } catch (error) {

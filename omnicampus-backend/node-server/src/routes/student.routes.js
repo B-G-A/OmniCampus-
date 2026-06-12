@@ -10,5 +10,10 @@ router.use(roleGuard('student'));
 
 router.get('/dashboard', studentController.getDashboard);
 router.get('/subjects', studentController.getStudentSubjects);
+<<<<<<< HEAD
+=======
+router.get('/attendance', studentController.getAttendance);
+router.get('/marks', studentController.getMarks);
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
 module.exports = router;

@@ -8,6 +8,10 @@ from __future__ import annotations
 
 import logging
 import httpx
+<<<<<<< HEAD
+=======
+import json
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
 from app.config import settings
 
@@ -47,7 +51,16 @@ def _build_ollama_messages(
     system_prompt: str,
     chat_history: list[dict],
     query: str,
+<<<<<<< HEAD
 ) -> list[dict]:
+=======
+    user_context: dict = None,
+) -> list[dict]:
+    if user_context:
+        ctx_str = json.dumps(user_context, indent=2)
+        system_prompt += f"\n\nStudent Profile (Use this if the student asks about their personal data, attendance, or marks):\n{ctx_str}"
+        
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     """Build the final messages payload for Ollama's chat API."""
     messages = [{"role": "system", "content": system_prompt}]
 
@@ -95,10 +108,18 @@ def generate_rag_response(
     query: str,
     context: str,
     chat_history: list[dict],
+<<<<<<< HEAD
 ) -> str:
     """Generate an answer grounded in the supplied *context* chunks."""
     system_instruction = _RAG_SYSTEM_PROMPT.format(context=context)
     messages = _build_ollama_messages(system_instruction, chat_history, query)
+=======
+    user_context: dict = None,
+) -> str:
+    """Generate an answer grounded in the supplied *context* chunks."""
+    system_instruction = _RAG_SYSTEM_PROMPT.format(context=context)
+    messages = _build_ollama_messages(system_instruction, chat_history, query, user_context)
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     
     answer = _call_ollama_chat(messages)
     logger.info("RAG response generated (%d chars).", len(answer))
@@ -108,10 +129,38 @@ def generate_rag_response(
 def generate_general_response(
     query: str,
     chat_history: list[dict],
+<<<<<<< HEAD
 ) -> str:
     """Generate an answer without course‑material context (external mode)."""
     messages = _build_ollama_messages(_GENERAL_SYSTEM_PROMPT, chat_history, query)
+=======
+    user_context: dict = None,
+) -> str:
+    """Generate an answer without course‑material context (external mode)."""
+    messages = _build_ollama_messages(_GENERAL_SYSTEM_PROMPT, chat_history, query, user_context)
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     
     answer = _call_ollama_chat(messages)
     logger.info("General response generated (%d chars).", len(answer))
     return answer
+<<<<<<< HEAD
+=======
+
+
+def generate_related_topics(query: str, context: str) -> list[str]:
+    """Generate a list of 3 short related topics or follow-up questions."""
+    prompt = (
+        "Based on the following query and context, generate exactly 3 short follow-up questions or related topics "
+        "that a student might find helpful to explore next. Return them as a comma-separated list without numbering or bullets.\n\n"
+        f"Query: {query}\n\nContext:\n{context}"
+    )
+    messages = [{"role": "user", "content": prompt}]
+    
+    try:
+        response = _call_ollama_chat(messages)
+        topics = [t.strip() for t in response.split(",") if t.strip()]
+        return topics[:3]
+    except Exception as exc:
+        logger.warning("Failed to generate related topics: %s", exc)
+        return []
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)

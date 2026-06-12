@@ -1,10 +1,18 @@
 const User = require('../models/User');
 const Subject = require('../models/Subject');
 const PlacementRecord = require('../models/PlacementRecord');
+<<<<<<< HEAD
+=======
+const Material = require('../models/Material');
+const ResumeHistory = require('../models/ResumeHistory');
+const ChatHistory = require('../models/ChatHistory');
+const Attendance = require('../models/Attendance');
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 const { AppError } = require('../middleware/errorHandler');
 
 /**
  * GET /api/admin/analytics
+<<<<<<< HEAD
  * Retrieve system-wide analytics.
  */
 const getAnalytics = async (req, res, next) => {
@@ -19,6 +27,52 @@ const getAnalytics = async (req, res, next) => {
     const placedStudents = await PlacementRecord.distinct('studentEmail');
     const placementRate = studentCount > 0 ? Math.round((placedStudents.length / studentCount) * 1000) / 10 : 0;
 
+=======
+ * Retrieve system-wide analytics including materials, resume analyses,
+ * chatbot usage, departments, and attendance statistics.
+ */
+const getAnalytics = async (req, res, next) => {
+  try {
+    const [
+      studentCount,
+      teacherCount,
+      tpoCount,
+      courseCount,
+      placementCount,
+      materialCount,
+      resumeAnalysisCount,
+      chatSessionCount,
+    ] = await Promise.all([
+      User.countDocuments({ role: 'student' }),
+      User.countDocuments({ role: 'teacher' }),
+      User.countDocuments({ role: 'tpo' }),
+      Subject.countDocuments(),
+      PlacementRecord.countDocuments(),
+      Material.countDocuments(),
+      ResumeHistory.countDocuments(),
+      ChatHistory.countDocuments(),
+    ]);
+
+    // Total chat messages across all sessions
+    const chatMessageAgg = await ChatHistory.aggregate([
+      { $project: { messageCount: { $size: '$messages' } } },
+      { $group: { _id: null, total: { $sum: '$messageCount' } } },
+    ]);
+    const totalChatMessages = chatMessageAgg[0]?.total || 0;
+
+    // Placement rate
+    const placedStudents = await PlacementRecord.distinct('studentEmail');
+    const placementRate = studentCount > 0 ? Math.round((placedStudents.length / studentCount) * 1000) / 10 : 0;
+
+    // Departments
+    const departments = await User.distinct('department', { role: 'student' });
+
+    // Attendance stats
+    const totalAttendanceRecords = await Attendance.countDocuments();
+    const presentRecords = await Attendance.countDocuments({ status: 'Present' });
+    const avgAttendanceRate = totalAttendanceRecords > 0 ? Math.round((presentRecords / totalAttendanceRecords) * 100) : 0;
+
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     res.json({
       success: true,
       data: {
@@ -27,9 +81,25 @@ const getAnalytics = async (req, res, next) => {
           teachers: teacherCount,
           tpos: tpoCount,
           courses: courseCount,
+<<<<<<< HEAD
           placements: placementCount
         },
         placementRate
+=======
+          placements: placementCount,
+          materials: materialCount,
+          resumeAnalyses: resumeAnalysisCount,
+          chatSessions: chatSessionCount,
+          chatMessages: totalChatMessages,
+        },
+        placementRate,
+        departments,
+        attendanceStats: {
+          totalRecords: totalAttendanceRecords,
+          presentRecords,
+          avgAttendanceRate,
+        },
+>>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
       }
     });
   } catch (error) {
