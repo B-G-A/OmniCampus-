@@ -66,6 +66,12 @@ const api = {
       ...options 
     }),
   delete: (endpoint, options) => request(endpoint, { method: 'DELETE', ...options }),
+  patch: (endpoint, body, options) => 
+    request(endpoint, { 
+      method: 'PATCH', 
+      body: JSON.stringify(body), 
+      ...options 
+    }),
   
   // For file uploads (skip JSON Content-Type headers)
   upload: async (endpoint, formData) => {

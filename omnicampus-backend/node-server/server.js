@@ -26,12 +26,6 @@ const startServer = async () => {
   // Connect to database
   await connectDB();
 
-  if (process.env.USE_MEMORY_DB === 'true') {
-    const seed = require('./seed');
-    await seed();
-    console.log('🌱 Seed data injected into in-memory DB.');
-  }
-
   // Listen
   server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀  Node server running in ${env.NODE_ENV} mode on port ${PORT}`);

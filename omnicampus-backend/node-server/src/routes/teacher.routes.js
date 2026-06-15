@@ -12,10 +12,8 @@ router.get('/dashboard', teacherController.getDashboard);
 router.get('/subjects', teacherController.getTeacherSubjects);
 router.get('/students', teacherController.getTeacherStudents);
 router.get('/activity', teacherController.getActivity);
-<<<<<<< HEAD
-=======
+router.post('/notices', teacherController.postNotice);
 router.post('/attendance', teacherController.saveAttendance);
 router.post('/marks', teacherController.saveMarks);
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
 module.exports = router;

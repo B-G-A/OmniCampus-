@@ -39,17 +39,26 @@ function SignIn() {
       else if (user.role === "tpo") navigate("/tpo");
       else if (user.role === "admin") navigate("/admin");
     } catch (err) {
-      setErrorMsg(err.message || "Failed to log in with demo account. Ensure DB is seeded.");
+      setErrorMsg(err.message || "Failed to log in. Check your credentials and backend connection.");
     } finally {
       setSubmitting(false);
     }
   };
 
   const videoRef = React.useRef(null);
+  
+  React.useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.play().catch(e => {
+        // Ignore autoplay policy or unmount errors
+      });
+    }
+  }, []);
+
   const toggleVideoPlay = () => {
     if (videoRef.current) {
       if (videoRef.current.paused) {
-        videoRef.current.play();
+        videoRef.current.play().catch(() => {});
       } else {
         videoRef.current.pause();
       }
@@ -61,9 +70,9 @@ function SignIn() {
       <div className="left-panel" style={leftPanelStyle}>
         <video
           ref={videoRef}
-          autoPlay
           loop
           muted
+          playsInline
           className="background-video"
           onClick={toggleVideoPlay}
           style={videoStyle}
@@ -128,24 +137,6 @@ function SignIn() {
             </button>
           </form>
 
-          <div style={dividerStyle}>
-            <span style={dividerTextStyle}>OR QUICK DEMO LOGIN</span>
-          </div>
-
-          <div style={demoGridStyle}>
-            <button onClick={() => handleQuickLogin("student@college.com")} style={demoBtnStyle}>
-              🧑‍🎓 Student <small style={{ display: 'block', fontSize: '10px', color: '#64748b' }}>Abhishna</small>
-            </button>
-            <button onClick={() => handleQuickLogin("teacher@college.com")} style={demoBtnStyle}>
-              👩‍🏫 Teacher <small style={{ display: 'block', fontSize: '10px', color: '#64748b' }}>Dr. Sharma</small>
-            </button>
-            <button onClick={() => handleQuickLogin("tpo@college.com")} style={demoBtnStyle}>
-              💼 TPO Officer <small style={{ display: 'block', fontSize: '10px', color: '#64748b' }}>Placement</small>
-            </button>
-            <button onClick={() => handleQuickLogin("admin@college.com")} style={demoBtnStyle}>
-              🛡️ Admin <small style={{ display: 'block', fontSize: '10px', color: '#64748b' }}>System</small>
-            </button>
-          </div>
         </div>
       </div>
     </div>

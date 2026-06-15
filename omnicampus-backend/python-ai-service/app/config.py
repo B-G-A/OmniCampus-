@@ -22,13 +22,13 @@ class _Settings:
     """Typed wrapper around environment variables."""
 
     # ── Ollama ───────────────────────────────────────────────────────
-    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-<<<<<<< HEAD
-    OLLAMA_LLM_MODEL: str = os.getenv("OLLAMA_LLM_MODEL", "llama3")
-=======
-    OLLAMA_LLM_MODEL: str = os.getenv("OLLAMA_LLM_MODEL", "tinyllama")
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
+    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    OLLAMA_LLM_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
     OLLAMA_EMBED_MODEL: str = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+
+    # ── Gemini (Fallback) ────────────────────────────────────────────
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
     # ── ChromaDB ─────────────────────────────────────────────────────
     CHROMA_PERSIST_DIR: str = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")

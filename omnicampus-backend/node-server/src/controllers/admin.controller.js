@@ -1,105 +1,60 @@
-const User = require('../models/User');
-const Subject = require('../models/Subject');
-const PlacementRecord = require('../models/PlacementRecord');
-<<<<<<< HEAD
-=======
-const Material = require('../models/Material');
-const ResumeHistory = require('../models/ResumeHistory');
-const ChatHistory = require('../models/ChatHistory');
-const Attendance = require('../models/Attendance');
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
+const { getSupabaseAdmin } = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
+const bcrypt = require('bcryptjs');
 
-/**
- * GET /api/admin/analytics
-<<<<<<< HEAD
- * Retrieve system-wide analytics.
- */
+const db = () => getSupabaseAdmin();
+
+const toUser = (row) => ({
+  _id: row.user_id,
+  id: row.user_id,
+  name: row.name,
+  email: row.email,
+  role: row.role,
+  status: row.status,
+  createdAt: row.created_at,
+});
+
 const getAnalytics = async (req, res, next) => {
   try {
-    const studentCount = await User.countDocuments({ role: 'student' });
-    const teacherCount = await User.countDocuments({ role: 'teacher' });
-    const tpoCount = await User.countDocuments({ role: 'tpo' });
-    const courseCount = await Subject.countDocuments();
-    const placementCount = await PlacementRecord.countDocuments();
-
-    // Calculate placement rate: placed students / total students
-    const placedStudents = await PlacementRecord.distinct('studentEmail');
-    const placementRate = studentCount > 0 ? Math.round((placedStudents.length / studentCount) * 1000) / 10 : 0;
-
-=======
- * Retrieve system-wide analytics including materials, resume analyses,
- * chatbot usage, departments, and attendance statistics.
- */
-const getAnalytics = async (req, res, next) => {
-  try {
+    const client = db();
     const [
-      studentCount,
-      teacherCount,
-      tpoCount,
-      courseCount,
-      placementCount,
-      materialCount,
-      resumeAnalysisCount,
-      chatSessionCount,
+      { count: totalUsers },
+      { count: students },
+      { count: teachers },
+      { count: activeSessions },
+      { count: materials },
+      { count: companies },
+      { data: placedResults },
+      { count: eventsCount }
     ] = await Promise.all([
-      User.countDocuments({ role: 'student' }),
-      User.countDocuments({ role: 'teacher' }),
-      User.countDocuments({ role: 'tpo' }),
-      Subject.countDocuments(),
-      PlacementRecord.countDocuments(),
-      Material.countDocuments(),
-      ResumeHistory.countDocuments(),
-      ChatHistory.countDocuments(),
+      client.from('users').select('*', { count: 'exact', head: true }),
+      client.from('users').select('*', { count: 'exact', head: true }).eq('role', 'student'),
+      client.from('users').select('*', { count: 'exact', head: true }).eq('role', 'teacher'),
+      client.from('chat_sessions').select('*', { count: 'exact', head: true }),
+      client.from('materials').select('*', { count: 'exact', head: true }),
+      client.from('companies').select('*', { count: 'exact', head: true }),
+      client.from('placement_results').select('result_id').eq('result', 'selected'),
+      client.from('events').select('*', { count: 'exact', head: true })
     ]);
 
-    // Total chat messages across all sessions
-    const chatMessageAgg = await ChatHistory.aggregate([
-      { $project: { messageCount: { $size: '$messages' } } },
-      { $group: { _id: null, total: { $sum: '$messageCount' } } },
-    ]);
-    const totalChatMessages = chatMessageAgg[0]?.total || 0;
+    const placementRate = students ? Number(((placedResults?.length || 0) / students) * 100).toFixed(1) : 0;
 
-    // Placement rate
-    const placedStudents = await PlacementRecord.distinct('studentEmail');
-    const placementRate = studentCount > 0 ? Math.round((placedStudents.length / studentCount) * 1000) / 10 : 0;
-
-    // Departments
-    const departments = await User.distinct('department', { role: 'student' });
-
-    // Attendance stats
-    const totalAttendanceRecords = await Attendance.countDocuments();
-    const presentRecords = await Attendance.countDocuments({ status: 'Present' });
-    const avgAttendanceRate = totalAttendanceRecords > 0 ? Math.round((presentRecords / totalAttendanceRecords) * 100) : 0;
-
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
     res.json({
       success: true,
       data: {
-        counts: {
-          students: studentCount,
-          teachers: teacherCount,
-          tpos: tpoCount,
-          courses: courseCount,
-<<<<<<< HEAD
-          placements: placementCount
+        totalUsers: totalUsers || 0,
+        distribution: {
+          students: students || 0,
+          teachers: teachers || 0,
+        },
+        engagement: {
+          materials: materials || 0,
+          companies: companies || 0,
+          placements: placedResults?.length || 0,
+          activeSessions: activeSessions || 0,
+          eventsThisMonth: eventsCount || 0,
         },
         placementRate
-=======
-          placements: placementCount,
-          materials: materialCount,
-          resumeAnalyses: resumeAnalysisCount,
-          chatSessions: chatSessionCount,
-          chatMessages: totalChatMessages,
-        },
-        placementRate,
-        departments,
-        attendanceStats: {
-          totalRecords: totalAttendanceRecords,
-          presentRecords,
-          avgAttendanceRate,
-        },
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
       }
     });
   } catch (error) {
@@ -107,115 +62,198 @@ const getAnalytics = async (req, res, next) => {
   }
 };
 
-/**
- * GET /api/admin/users
- * Fetch all users with optional role filtering.
- */
 const listUsers = async (req, res, next) => {
   try {
-    const filter = {};
-    if (req.query.role) {
-      filter.role = req.query.role;
-    }
-
-    const users = await User.find(filter).sort({ createdAt: -1 });
-
-    res.json({
-      success: true,
-      data: users
-    });
+    const client = db();
+    const { data, error } = await client.from('users').select('user_id, name, email, role, status, created_at').order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ success: true, data: (data || []).map(toUser) });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * POST /api/admin/users
- * Register a new user (Student, Teacher, TPO, or Admin).
- */
 const createUser = async (req, res, next) => {
   try {
-    const { name, email, password, role, cgpa, department, attendance } = req.body;
-
+    const { name, email, password, role, semesterId } = req.body;
     if (!name || !email || !password || !role) {
-      throw new AppError('Name, email, password, and role are required.', 400, 'VALIDATION_ERROR');
+      throw new AppError('Missing required fields.', 400, 'VALIDATION_ERROR');
     }
-
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      throw new AppError('A user with this email already exists.', 409, 'DUPLICATE_EMAIL');
-    }
-
-    // Prepare creation options
-    const userData = {
+    const client = db();
+    const passwordHash = await bcrypt.hash(password, 12);
+    
+    const { data, error } = await client.from('users').insert({
       name,
-      email,
-      password,
+      email: email.toLowerCase(),
+      password_hash: passwordHash,
       role,
-      isVerified: true // Pre-verify admin-created accounts
-    };
+      status: 'active'
+    }).select('user_id, name, email, role, status, created_at').single();
+    
+    if (error) throw error;
+    
+    if (role === 'student' || role === 'teacher') {
+      const { data: defaultDept } = await client.from('departments').select('department_id').limit(1).single();
+      const defaultDeptId = defaultDept ? defaultDept.department_id : null;
+      
+      let defaultSemId = semesterId;
+      if (role === 'student' && !defaultSemId) {
+        const { data: defaultSem } = await client.from('semesters').select('semester_id').order('semester_number', { ascending: true }).limit(1).single();
+        defaultSemId = defaultSem ? defaultSem.semester_id : null;
+      }
 
-    // Add optional student fields if role is student
-    if (role === 'student') {
-      if (cgpa !== undefined) userData.cgpa = cgpa;
-      if (department !== undefined) userData.department = department;
-      if (attendance !== undefined) userData.attendance = attendance;
+      if (role === 'student') {
+        const { data: student, error: stdErr } = await client.from('students').insert({
+          user_id: data.user_id,
+          department_id: req.body.departmentId || defaultDeptId,
+          semester_id: defaultSemId,
+          roll_number: req.body.rollNumber || `ROLL-${data.user_id.slice(0, 8).toUpperCase()}`,
+          section: req.body.section || 'A'
+        }).select('student_id').single();
+        
+        if (stdErr) throw stdErr;
+
+        if (defaultSemId && student) {
+          const { data: subjects } = await client.from('subjects').select('subject_id').eq('semester_id', defaultSemId);
+          if (subjects && subjects.length > 0) {
+            const enrollments = subjects.map(s => ({ student_id: student.student_id, subject_id: s.subject_id }));
+            await client.from('student_enrollments').insert(enrollments);
+          }
+        }
+      } else if (role === 'teacher') {
+        const { error: tchrErr } = await client.from('teachers').insert({
+          user_id: data.user_id,
+          department_id: req.body.departmentId || defaultDeptId,
+          employee_id: req.body.employeeId || `EMP-${data.user_id.slice(0, 8).toUpperCase()}`
+        });
+        if (tchrErr) throw tchrErr;
+      }
     }
 
-    const user = await User.create(userData);
-
-    res.status(201).json({
-      success: true,
-      message: 'User created successfully.',
-      data: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
-    });
+    res.status(201).json({ success: true, data: toUser(data) });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * DELETE /api/admin/users/:id
- * Delete a user and clean up associations.
- */
+const updateUser = async (req, res, next) => {
+  try {
+    const { name, email, role, departmentId, semesterId } = req.body;
+    const client = db();
+    const { data: user, error } = await client.from('users').update({ name, email, role }).eq('user_id', req.params.id).select('*').single();
+    if (error) throw error;
+
+    if (role === 'student') {
+      await client.from('students').update({ department_id: departmentId, semester_id: semesterId }).eq('user_id', user.user_id);
+    } else if (role === 'teacher') {
+      await client.from('teachers').update({ department_id: departmentId }).eq('user_id', user.user_id);
+    }
+
+    res.json({ success: true, data: toUser(user) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const toggleUserStatus = async (req, res, next) => {
+  try {
+    const { status } = req.body;
+    const client = db();
+    const { data, error } = await client.from('users').update({ status }).eq('user_id', req.params.id).select('*').single();
+    if (error) throw error;
+    res.json({ success: true, data: toUser(data) });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const deleteUser = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      throw new AppError('User not found.', 404, 'NOT_FOUND');
+    const client = db();
+    const { error } = await client.from('users').delete().eq('user_id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true, message: 'User deleted successfully.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const listDepartments = async (req, res, next) => {
+  try {
+    const client = db();
+    const { data, error } = await client.from('departments').select('*').order('department_name');
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const createDepartment = async (req, res, next) => {
+  try {
+    const { name, code } = req.body;
+    const client = db();
+    const { data, error } = await client.from('departments').insert({ department_name: name, department_code: code }).select('*').single();
+    if (error) throw error;
+    res.status(201).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteDepartment = async (req, res, next) => {
+  try {
+    const client = db();
+    const { error } = await client.from('departments').delete().eq('department_id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true, message: 'Department deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const assignTeacherToSubject = async (req, res, next) => {
+  try {
+    const { userId, subjectId } = req.body;
+    const client = db();
+    const { data: teacher } = await client.from('teachers').select('teacher_id').eq('user_id', userId).maybeSingle();
+    if (!teacher) throw new AppError('Teacher not found', 404, 'NOT_FOUND');
+
+    const { error } = await client.from('teacher_subject_mappings').insert({ teacher_id: teacher.teacher_id, subject_id: subjectId });
+    if (error) throw error;
+    res.json({ success: true, message: 'Teacher assigned successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const enrollStudentInSemester = async (req, res, next) => {
+  try {
+    const { userId, semesterId } = req.body;
+    const client = db();
+    const { data: student } = await client.from('students').select('student_id').eq('user_id', userId).maybeSingle();
+    if (!student) throw new AppError('Student not found', 404, 'NOT_FOUND');
+
+    await client.from('students').update({ semester_id: semesterId }).eq('student_id', student.student_id);
+
+    const { data: subjects } = await client.from('subjects').select('subject_id').eq('semester_id', semesterId);
+    if (subjects && subjects.length > 0) {
+      const enrollments = subjects.map(s => ({ student_id: student.student_id, subject_id: s.subject_id }));
+      await client.from('student_enrollments').upsert(enrollments, { onConflict: 'student_id,subject_id' });
     }
 
-    // Prevent deleting self
-    if (user._id.toString() === req.user.id) {
-      throw new AppError('Admins cannot delete their own accounts.', 400, 'FORBIDDEN');
-    }
+    res.json({ success: true, message: 'Student enrolled in semester successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
 
-    // Clean up enrollment or courses if necessary
-    if (user.role === 'student') {
-      // Pull student from subject enrolledStudents arrays
-      await Subject.updateMany(
-        { enrolledStudents: user._id },
-        { $pull: { enrolledStudents: user._id } }
-      );
-    } else if (user.role === 'teacher') {
-      // Set teacher field to null for subjects owned by this teacher
-      await Subject.updateMany(
-        { teacher: user._id },
-        { $set: { teacher: null } }
-      );
-    }
-
-    await User.findByIdAndDelete(user._id);
-
-    res.json({
-      success: true,
-      message: `User ${user.name} deleted successfully.`
-    });
+const getAuditLogs = async (req, res, next) => {
+  try {
+    const client = db();
+    const { data, error } = await client.from('audit_logs').select('*, users(name, email)').order('created_at', { ascending: false }).limit(100);
+    if (error) throw error;
+    res.json({ success: true, data });
   } catch (error) {
     next(error);
   }
@@ -225,5 +263,13 @@ module.exports = {
   getAnalytics,
   listUsers,
   createUser,
-  deleteUser
+  updateUser,
+  toggleUserStatus,
+  deleteUser,
+  listDepartments,
+  createDepartment,
+  deleteDepartment,
+  assignTeacherToSubject,
+  enrollStudentInSemester,
+  getAuditLogs
 };

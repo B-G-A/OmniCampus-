@@ -10,8 +10,8 @@ router.use(authMiddleware);
 // Get active semester (accessible to students and teachers)
 router.get('/active', semesterController.getActiveSemester);
 
-// Teacher-only routes
-router.use(roleGuard('teacher'));
+// Teacher and Admin routes
+router.use(roleGuard('teacher', 'admin'));
 
 router.get('/', semesterController.getAllSemesters);
 router.post('/', semesterController.createSemester);

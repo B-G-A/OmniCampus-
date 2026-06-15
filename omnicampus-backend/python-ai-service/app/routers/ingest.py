@@ -101,6 +101,16 @@ def _run_ingestion(req: IngestRequest) -> None:  # noqa: C901 – acceptable com
             "error": str(exc),
         }
         _send_callback(callback_url, payload, headers)
+    finally:
+        try:
+            import os
+            if os.path.exists(req.file_path):
+                os.remove(req.file_path)
+                logger.info("Deleted temp file %s", req.file_path)
+        except Exception as cleanup_exc:
+            logger.error("Failed to delete temp file %s: %s", req.file_path, cleanup_exc)
+
+
 
 
 def _send_callback(url: str, payload: dict, headers: dict) -> None:

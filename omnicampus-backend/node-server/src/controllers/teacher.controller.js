@@ -1,124 +1,148 @@
-/**
- * Teacher dashboard controller.
- *
- * Aggregated stats, subjects, students, and activity for the logged-in teacher.
- */
-
-const Subject = require('../models/Subject');
-const Material = require('../models/Material');
-const ChatHistory = require('../models/ChatHistory');
-<<<<<<< HEAD
+const { getSupabaseAdmin } = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
-=======
-const Attendance = require('../models/Attendance');
-const Mark = require('../models/Mark');
-const { AppError } = require('../middleware/errorHandler');
-const { createBulkNotifications } = require('./notification.controller');
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 
-/**
- * GET /api/teacher/dashboard
- * Aggregated dashboard stats for the teacher.
- */
+const db = () => getSupabaseAdmin();
+
 const getDashboard = async (req, res, next) => {
   try {
-    const teacherId = req.user.id;
+    const client = db();
+    const { data: teacherRow } = await client.from('teachers').select('teacher_id').eq('user_id', req.user.id).maybeSingle();
+    const teacherId = teacherRow?.teacher_id;
+    if (!teacherId) throw new AppError('Teacher profile not found.', 404, 'NOT_FOUND');
 
-    // Subjects owned by this teacher
-    const subjects = await Subject.find({ teacher: teacherId }).select('_id enrolledStudents');
+    const { data: mappings } = await client.from('teacher_subject_mappings').select('subjects(subject_id, subject_name, subject_code, semesters(semester_number))').eq('teacher_id', teacherId);
+    
+    const subjectIds = (mappings || []).map(m => m.subjects?.subject_id).filter(Boolean);
+    
+    let recentAssignments = [];
+    let recentUploads = [];
+    let totalMaterials = 0;
+    let totalStudents = 0;
 
-    const subjectIds = subjects.map((s) => s._id);
+    if (subjectIds.length > 0) {
+      const { data: assignments } = await client.from('assignments').select('title, due_date, subjects(subject_name)').in('subject_id', subjectIds).order('created_at', { ascending: false }).limit(5);
+      recentAssignments = assignments || [];
 
-    // Unique student count across all subjects
-    const studentSet = new Set();
-    subjects.forEach((s) => s.enrolledStudents.forEach((id) => studentSet.add(id.toString())));
+      const { data: materials, count: materialCount } = await client.from('materials').select('title, file_type, uploaded_at, subjects(subject_name)', { count: 'exact' }).in('subject_id', subjectIds).order('uploaded_at', { ascending: false }).limit(5);
+      recentUploads = materials || [];
+      totalMaterials = materialCount || 0;
 
-    // Total materials
-    const totalMaterials = await Material.countDocuments({ subject: { $in: subjectIds } });
-
-    // Recent uploads (last 5)
-    const recentUploads = await Material.find({ subject: { $in: subjectIds } })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .populate('subject', 'name code')
-      .select('title fileType createdAt subject');
+      const { data: enrollments } = await client.from('student_enrollments').select('student_id').in('subject_id', subjectIds);
+      const uniqueStudents = new Set((enrollments || []).map(e => e.student_id));
+      totalStudents = uniqueStudents.size;
+    }
 
     res.json({
       success: true,
       data: {
-        subjectCount: subjects.length,
-        totalStudents: studentSet.size,
+        subjects: (mappings || []).map(m => ({
+          ...m.subjects,
+          _id: m.subjects?.subject_id,
+          name: m.subjects?.subject_name,
+          code: m.subjects?.subject_code
+        })),
+        subjectCount: subjectIds.length,
+        totalStudents,
         totalMaterials,
-        recentUploads,
-      },
+        recentAssignments,
+        recentUploads
+      }
     });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * GET /api/teacher/subjects
- * All subjects created by this teacher.
- */
 const getTeacherSubjects = async (req, res, next) => {
   try {
-    const subjects = await Subject.find({ teacher: req.user.id })
-      .sort({ createdAt: -1 })
-      .populate('semester', 'name year semesterNumber isActive')
-      .populate('enrolledStudents', 'name email');
+    const client = db();
+    const { data: teacherRow } = await client.from('teachers').select('teacher_id').eq('user_id', req.user.id).maybeSingle();
+    const teacherId = teacherRow?.teacher_id;
+    if (!teacherId) return res.json({ success: true, data: [] });
 
-    res.json({ success: true, data: subjects });
+    const { data, error } = await client
+      .from('teacher_subject_mappings')
+      .select('subjects(subject_id, subject_name, subject_code, credits, description, semesters(semester_number, academic_year), departments(department_name))')
+      .eq('teacher_id', teacherId);
+
+    if (error) throw error;
+    res.json({ 
+      success: true, 
+      data: (data || []).map(m => ({
+        ...m.subjects,
+        _id: m.subjects?.subject_id,
+        name: m.subjects?.subject_name,
+        code: m.subjects?.subject_code
+      })) 
+    });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * GET /api/teacher/students
- * All unique students across the teacher's subjects.
- */
 const getTeacherStudents = async (req, res, next) => {
   try {
-    const subjects = await Subject.find({ teacher: req.user.id })
-      .populate('enrolledStudents', 'name email profilePicture')
-      .select('enrolledStudents name code');
+    const client = db();
+    const { data: teacherRow } = await client.from('teachers').select('teacher_id').eq('user_id', req.user.id).maybeSingle();
+    const teacherId = teacherRow?.teacher_id;
+    if (!teacherId) return res.json({ success: true, data: [] });
 
-    // Deduplicate students
-    const seen = new Map();
-    const students = [];
+    const { data: mappings } = await client.from('teacher_subject_mappings').select('subject_id').eq('teacher_id', teacherId);
+    const subjectIds = (mappings || []).map(row => row.subject_id);
+    if (!subjectIds.length) return res.json({ success: true, data: [] });
 
-    subjects.forEach((sub) => {
-      sub.enrolledStudents.forEach((student) => {
-        const sid = student._id.toString();
-        if (!seen.has(sid)) {
-          seen.set(sid, true);
-          students.push(student);
-        }
-      });
+    const { data, error } = await client
+      .from('student_enrollments')
+      .select('students(student_id, roll_number, section, cgpa, active_backlogs, users(user_id, name, email, role, status), departments(department_name), semesters(semester_number))')
+      .in('subject_id', subjectIds);
+      
+    if (error) throw error;
+
+    const students = new Map();
+    (data || []).forEach(row => {
+      const s = row.students;
+      if (s) {
+        students.set(s.student_id, {
+          _id: s.student_id,
+          id: s.student_id,
+          name: s.users?.name,
+          email: s.users?.email,
+          rollNumber: s.roll_number,
+          section: s.section,
+          cgpa: s.cgpa,
+          department: s.departments?.department_name,
+          semester: s.semesters?.semester_number,
+        });
+      }
     });
 
-    res.json({ success: true, data: students });
+    res.json({ success: true, data: Array.from(students.values()) });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * GET /api/teacher/activity
- * Recent chat activity metadata (no message content) for the teacher's subjects.
- */
 const getActivity = async (req, res, next) => {
   try {
-    const subjects = await Subject.find({ teacher: req.user.id }).select('_id');
-    const subjectIds = subjects.map((s) => s._id);
+    const client = db();
+    const { data: teacherRow } = await client.from('teachers').select('teacher_id').eq('user_id', req.user.id).maybeSingle();
+    const teacherId = teacherRow?.teacher_id;
+    if (!teacherId) return res.json({ success: true, data: [] });
 
-    const activity = await ChatHistory.find({ subject: { $in: subjectIds } })
-      .sort({ updatedAt: -1 })
-      .limit(20)
-      .select('user subject semester sessionId createdAt updatedAt')
-      .populate('user', 'name email')
-      .populate('subject', 'name code');
+    const { data: mappings } = await client.from('teacher_subject_mappings').select('subject_id').eq('teacher_id', teacherId);
+    const subjectIds = (mappings || []).map(row => row.subject_id);
+
+    let activity = [];
+    if (subjectIds.length > 0) {
+      const { data: attendance } = await client.from('attendance').select('date, created_at, subjects(subject_name)').in('subject_id', subjectIds).order('created_at', { ascending: false }).limit(5);
+      const { data: marks } = await client.from('marks').select('updated_at, subjects(subject_name)').in('subject_id', subjectIds).order('updated_at', { ascending: false }).limit(5);
+
+      (attendance || []).forEach(a => activity.push({ type: 'attendance', subject: a.subjects?.subject_name, date: a.created_at }));
+      (marks || []).forEach(m => activity.push({ type: 'marks', subject: m.subjects?.subject_name, date: m.updated_at }));
+      
+      activity.sort((a, b) => new Date(b.date) - new Date(a.date));
+      activity = activity.slice(0, 10);
+    }
 
     res.json({ success: true, data: activity });
   } catch (error) {
@@ -126,41 +150,66 @@ const getActivity = async (req, res, next) => {
   }
 };
 
-<<<<<<< HEAD
-=======
-/**
- * POST /api/teacher/attendance
- * Bulk save attendance records for a subject.
- */
-const saveAttendance = async (req, res, next) => {
+const postNotice = async (req, res, next) => {
   try {
-    const { subjectId, date, records } = req.body;
-    
-    // records: [{ student: id, status: 'Present'/'Absent' }, ...]
-    const parsedDate = new Date(date);
-    parsedDate.setHours(0, 0, 0, 0);
+    const { title, message, subjectId } = req.body;
+    if (!title || !message) throw new AppError('Title and message are required', 400, 'VALIDATION_ERROR');
 
-    const operations = records.map(record => ({
-      updateOne: {
-        filter: { student: record.student, subject: subjectId, date: parsedDate },
-        update: { $set: { status: record.status } },
-        upsert: true
-      }
-    }));
+    const client = db();
+    const { data: teacherRow } = await client.from('teachers').select('teacher_id').eq('user_id', req.user.id).maybeSingle();
+    const teacherId = teacherRow?.teacher_id;
+    if (!teacherId) throw new AppError('Teacher profile not found', 404, 'NOT_FOUND');
 
-    if (operations.length > 0) {
-      await Attendance.bulkWrite(operations);
+    let targetSubjectIds = [];
+    if (subjectId) {
+      targetSubjectIds.push(subjectId);
+    } else {
+      const { data: mappings } = await client.from('teacher_subject_mappings').select('subject_id').eq('teacher_id', teacherId);
+      targetSubjectIds = (mappings || []).map(row => row.subject_id);
     }
 
-    // Fire notifications to affected students
-    const subject = await Subject.findById(subjectId).select('name');
-    const studentIds = records.map(r => r.student);
-    createBulkNotifications(studentIds, {
-      type: 'attendance',
-      title: 'Attendance Updated',
-      message: `Attendance for ${subject?.name || 'a subject'} on ${parsedDate.toLocaleDateString()} has been recorded.`,
-      relatedId: subjectId,
-    });
+    if (targetSubjectIds.length > 0) {
+      const { data: enrollments } = await client.from('student_enrollments').select('students(user_id)').in('subject_id', targetSubjectIds);
+      const userIds = new Set();
+      (enrollments || []).forEach(e => {
+        if (e.students?.user_id) userIds.add(e.students.user_id);
+      });
+
+      if (userIds.size > 0) {
+        const notifications = Array.from(userIds).map(uid => ({
+          user_id: uid,
+          title,
+          message,
+          type: 'academic'
+        }));
+        await client.from('notifications').insert(notifications);
+      }
+    }
+
+    res.status(201).json({ success: true, message: 'Notice posted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const saveAttendance = async (req, res, next) => {
+  try {
+    const { records, date } = req.body;
+    if (!records || !Array.isArray(records) || records.length === 0) {
+      throw new AppError('Records array is required.', 400, 'VALIDATION_ERROR');
+    }
+    const client = db();
+    
+    // Convert to upsert format: student_id, subject_id, date, status
+    const rows = records.map(r => ({
+      student_id: r.student || r.studentId,
+      subject_id: subjectId || r.subjectId,
+      date: date || new Date().toISOString().split('T')[0],
+      status: r.status.toLowerCase(), // present, absent
+    }));
+
+    const { error } = await client.from('attendance').upsert(rows, { onConflict: 'student_id,subject_id,date' });
+    if (error) throw error;
 
     res.json({ success: true, message: 'Attendance saved successfully.' });
   } catch (error) {
@@ -168,50 +217,27 @@ const saveAttendance = async (req, res, next) => {
   }
 };
 
-/**
- * POST /api/teacher/marks
- * Bulk save marks for a subject.
- */
 const saveMarks = async (req, res, next) => {
   try {
-    const { subjectId, marks } = req.body;
-
-    // Support both old fields (midTerm/endTerm/practical) and new fields (internal1/internal2/assignment/total/grade)
-    const operations = marks.map(m => {
-      const updateFields = {};
-      // Old fields — preserve backward compat
-      if (m.midTerm !== undefined) updateFields.midTerm = m.midTerm;
-      if (m.endTerm !== undefined) updateFields.endTerm = m.endTerm;
-      if (m.practical !== undefined) updateFields.practical = m.practical;
-      // New detailed fields
-      if (m.internal1 !== undefined) updateFields.internal1 = m.internal1;
-      if (m.internal2 !== undefined) updateFields.internal2 = m.internal2;
-      if (m.assignment !== undefined) updateFields.assignment = m.assignment;
-      if (m.total !== undefined) updateFields.total = m.total;
-      if (m.grade !== undefined) updateFields.grade = m.grade;
-
-      return {
-        updateOne: {
-          filter: { student: m.student, subject: subjectId },
-          update: { $set: updateFields },
-          upsert: true
-        }
-      };
-    });
-
-    if (operations.length > 0) {
-      await Mark.bulkWrite(operations);
+    const { records } = req.body;
+    if (!records || !Array.isArray(records) || records.length === 0) {
+      throw new AppError('Records array is required.', 400, 'VALIDATION_ERROR');
     }
+    const client = db();
 
-    // Fire notifications to affected students
-    const subject = await Subject.findById(subjectId).select('name');
-    const studentIds = marks.map(m => m.student);
-    createBulkNotifications(studentIds, {
-      type: 'marks',
-      title: 'Marks Updated',
-      message: `Marks for ${subject?.name || 'a subject'} have been updated by your teacher.`,
-      relatedId: subjectId,
-    });
+    const rows = records.map(r => ({
+      student_id: r.studentId,
+      subject_id: r.subjectId,
+      internal_marks: Number(r.internalMarks) || 0,
+      assignment_marks: Number(r.assignmentMarks) || 0,
+      lab_marks: Number(r.labMarks) || 0,
+      mid_exam_marks: Number(r.midExamMarks) || 0,
+      total: Number(r.total) || 0,
+      grade: r.grade || 'F',
+    }));
+
+    const { error } = await client.from('marks').upsert(rows, { onConflict: 'student_id,subject_id' });
+    if (error) throw error;
 
     res.json({ success: true, message: 'Marks saved successfully.' });
   } catch (error) {
@@ -219,15 +245,12 @@ const saveMarks = async (req, res, next) => {
   }
 };
 
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 module.exports = {
   getDashboard,
   getTeacherSubjects,
   getTeacherStudents,
   getActivity,
-<<<<<<< HEAD
-=======
+  postNotice,
   saveAttendance,
-  saveMarks,
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
+  saveMarks
 };

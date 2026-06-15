@@ -1,179 +1,86 @@
-/**
- * Semester controller.
- *
- * CRUD operations, activation/deactivation, archiving with AI-collection
- * cleanup, and cascading deletes.
- */
-
-const Semester = require('../models/Semester');
-const Subject = require('../models/Subject');
-const Material = require('../models/Material');
-const ChatHistory = require('../models/ChatHistory');
-const aiProxy = require('../services/aiProxy.service');
+const { getSupabaseAdmin } = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
 
-/**
- * GET /api/semesters
- * Paginated list of all semesters.
- */
+const db = () => getSupabaseAdmin();
+
+const toSemester = (row) => ({
+  _id: row.semester_id,
+  id: row.semester_id,
+  semesterNumber: row.semester_number,
+  academicYear: row.academic_year,
+  isActive: !!row.is_active,
+  name: `Semester ${row.semester_number}`,
+  year: row.academic_year
+});
+
 const getAllSemesters = async (req, res, next) => {
   try {
-    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
-    const skip = (page - 1) * limit;
-
-    const [semesters, total] = await Promise.all([
-      Semester.find()
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .populate('createdBy', 'name email'),
-      Semester.countDocuments(),
-    ]);
-
-    res.set('X-Total-Count', total);
-    res.json({
-      success: true,
-      data: semesters,
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
-    });
+    const client = db();
+    const { data, error } = await client.from('semesters').select('*').order('academic_year', { ascending: false }).order('semester_number', { ascending: true });
+    if (error) throw error;
+    res.json({ success: true, data: (data || []).map(toSemester) });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * GET /api/semesters/active
- * Return the single active semester.
- */
 const getActiveSemester = async (req, res, next) => {
   try {
-    const semester = await Semester.findOne({ isActive: true }).populate('createdBy', 'name email');
-
-    if (!semester) {
-      throw new AppError('No active semester found.', 404, 'NOT_FOUND');
-    }
-
-    res.json({ success: true, data: semester });
+    const client = db();
+    const { data, error } = await client.from('semesters').select('*').eq('is_active', true).limit(1).maybeSingle();
+    if (error) throw error;
+    if (!data) return res.json({ success: true, data: null });
+    res.json({ success: true, data: toSemester(data) });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * POST /api/semesters
- * Create a new semester. vectorCollectionName is derived from the new doc id.
- */
 const createSemester = async (req, res, next) => {
   try {
-    const { name, year, semesterNumber, startDate, endDate } = req.body;
-
-    const semester = await Semester.create({
-      name,
-      year,
-      semesterNumber,
-      startDate: startDate || null,
-      endDate: endDate || null,
-      createdBy: req.user.id,
-    });
-
-    // Set vector collection name after we have the id
-    semester.vectorCollectionName = `semester_${semester._id}`;
-    await semester.save();
-
-    res.status(201).json({ success: true, data: semester });
+    const { semesterNumber, academicYear } = req.body;
+    if (!semesterNumber || !academicYear) {
+      throw new AppError('semesterNumber and academicYear are required.', 400, 'VALIDATION_ERROR');
+    }
+    const client = db();
+    const { data, error } = await client.from('semesters').insert({ semester_number: semesterNumber, academic_year: academicYear }).select('*').single();
+    if (error) throw error;
+    res.status(201).json({ success: true, data: toSemester(data) });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * PATCH /api/semesters/:id/activate
- * Deactivate all semesters, then activate the specified one.
- */
 const activateSemester = async (req, res, next) => {
   try {
-    const { id } = req.params;
-
-    const semester = await Semester.findById(id);
-    if (!semester) {
-      throw new AppError('Semester not found.', 404, 'NOT_FOUND');
-    }
-
-    // Deactivate every semester
-    await Semester.updateMany({}, { isActive: false });
-
-    // Activate the target
-    semester.isActive = true;
-    semester.archivedAt = null; // un-archive if it was archived
-    await semester.save();
-
-    res.json({ success: true, message: 'Semester activated.', data: semester });
+    const client = db();
+    await client.from('semesters').update({ is_active: false }).neq('semester_id', req.params.id);
+    const { data, error } = await client.from('semesters').update({ is_active: true }).eq('semester_id', req.params.id).select('*').single();
+    if (error) throw error;
+    res.json({ success: true, message: 'Semester activated', data: toSemester(data) });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * PATCH /api/semesters/:id/archive
- * Mark semester as archived and delete its vector collection.
- */
 const archiveSemester = async (req, res, next) => {
   try {
-    const { id } = req.params;
-
-    const semester = await Semester.findById(id);
-    if (!semester) {
-      throw new AppError('Semester not found.', 404, 'NOT_FOUND');
-    }
-
-    semester.isActive = false;
-    semester.archivedAt = new Date();
-    await semester.save();
-
-    // Clean up AI vector collection (best-effort)
-    if (semester.vectorCollectionName) {
-      aiProxy.deleteCollection(semester.vectorCollectionName).catch((err) =>
-        console.error('⚠️  Failed to delete AI collection:', err.message)
-      );
-    }
-
-    res.json({ success: true, message: 'Semester archived.', data: semester });
+    const client = db();
+    const { data, error } = await client.from('semesters').update({ is_active: false }).eq('semester_id', req.params.id).select('*').single();
+    if (error) throw error;
+    res.json({ success: true, message: 'Semester archived', data: toSemester(data) });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * DELETE /api/semesters/:id
- * Delete semester and cascade-delete all related data.
- */
 const deleteSemester = async (req, res, next) => {
   try {
     const { id } = req.params;
-
-    const semester = await Semester.findById(id);
-    if (!semester) {
-      throw new AppError('Semester not found.', 404, 'NOT_FOUND');
-    }
-
-    // Cascade deletes
-    await Promise.all([
-      Material.deleteMany({ semester: id }),
-      ChatHistory.deleteMany({ semester: id }),
-      Subject.deleteMany({ semester: id }),
-    ]);
-
-    // Clean up AI vector collection (best-effort)
-    if (semester.vectorCollectionName) {
-      aiProxy.deleteCollection(semester.vectorCollectionName).catch((err) =>
-        console.error('⚠️  Failed to delete AI collection:', err.message)
-      );
-    }
-
-    await Semester.findByIdAndDelete(id);
-
-    res.json({ success: true, message: 'Semester and all related data deleted.' });
+    const client = db();
+    const { error } = await client.from('semesters').delete().eq('semester_id', id);
+    if (error) throw error;
+    res.json({ success: true, message: 'Semester deleted successfully' });
   } catch (error) {
     next(error);
   }
@@ -185,5 +92,5 @@ module.exports = {
   createSemester,
   activateSemester,
   archiveSemester,
-  deleteSemester,
+  deleteSemester
 };

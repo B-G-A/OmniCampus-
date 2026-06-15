@@ -1,358 +1,312 @@
-const Company = require('../models/Company');
-const PlacementRecord = require('../models/PlacementRecord');
-const InterviewExperience = require('../models/InterviewExperience');
+const { getSupabaseAdmin } = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
 
-// Helper to seed initial mock placement data if the DB is empty
-const seedPlacementDataIfEmpty = async () => {
-  const companyCount = await Company.countDocuments();
-  if (companyCount > 0) return;
+const db = () => getSupabaseAdmin();
 
-  console.log('🌱  Seeding mock placement data for dashboard...');
-
-  const google = await Company.create({
-    name: 'Google',
-    website: 'https://careers.google.com',
-    description: 'Global technology leader in search, cloud, and AI.',
-    rolesOffered: [
-      { title: 'Software Engineer', packageLPA: 45, description: 'Systems and application development.' },
-      { title: 'Associate Product Manager', packageLPA: 35, description: 'Product lifecycle management.' }
-    ],
-    eligibility: { minCGPA: 8.5, allowedBranches: ['CSE', 'ECE'] },
-    recruitmentProcess: ['Online Assessment', 'Technical Round 1', 'Technical Round 2', 'Googleyness Round'],
-    visitedYears: [2023, 2024, 2025]
-  });
-
-  const microsoft = await Company.create({
-    name: 'Microsoft',
-    website: 'https://careers.microsoft.com',
-    description: 'Empowering every person and organization on the planet to achieve more.',
-    rolesOffered: [
-      { title: 'Software Engineering Intern', packageLPA: 12, description: 'Summer internship program.' },
-      { title: 'Full Time SWE', packageLPA: 32, description: 'Cloud and Windows engineering.' }
-    ],
-    eligibility: { minCGPA: 8.0, allowedBranches: ['CSE', 'ECE', 'EEE'] },
-    recruitmentProcess: ['Coding Round', 'Technical Interview 1', 'Technical Interview 2', 'HR Fitment'],
-    visitedYears: [2023, 2024, 2025]
-  });
-
-  const amazon = await Company.create({
-    name: 'Amazon',
-    website: 'https://jobs.amazon.com',
-    description: 'Earth\'s most customer-centric company.',
-    rolesOffered: [
-      { title: 'Systems Engineer', packageLPA: 22, description: 'Infrastructure operations.' },
-      { title: 'Software Development Engineer', packageLPA: 28, description: 'Amazon Web Services engineering.' }
-    ],
-    eligibility: { minCGPA: 7.5, allowedBranches: ['CSE', 'ECE', 'ME', 'EEE'] },
-    recruitmentProcess: ['Online Coding Test', 'Technical Round', 'Bar Raiser Round'],
-    visitedYears: [2023, 2024]
-  });
-
-  const TCS = await Company.create({
-    name: 'TCS',
-    website: 'https://tcs.com',
-    description: 'Global IT service and consulting services provider.',
-    rolesOffered: [
-      { title: 'Ninja Developer', packageLPA: 4, description: 'Core software development.' },
-      { title: 'Digital Developer', packageLPA: 7, description: 'Next-gen technology development.' }
-    ],
-    eligibility: { minCGPA: 6.0, allowedBranches: ['CSE', 'ECE', 'ME', 'EEE', 'CE'] },
-    recruitmentProcess: ['National Qualifier Test', 'Technical Interview', 'HR Round'],
-    visitedYears: [2023, 2024, 2025]
-  });
-
-  // Create placement records
-  const records = [
-    // 2025
-    { company: google._id, studentName: 'Alice Johnson', department: 'CSE', year: 2025, packageLPA: 45 },
-    { company: google._id, studentName: 'Bob Smith', department: 'CSE', year: 2025, packageLPA: 45 },
-    { company: microsoft._id, studentName: 'Carol Danvers', department: 'ECE', year: 2025, packageLPA: 32 },
-    { company: TCS._id, studentName: 'David Banner', department: 'ME', year: 2025, packageLPA: 7 },
-    { company: TCS._id, studentName: 'Eve Miller', department: 'EEE', year: 2025, packageLPA: 4 },
-
-    // 2024
-    { company: google._id, studentName: 'Frank Castle', department: 'CSE', year: 2024, packageLPA: 42 },
-    { company: microsoft._id, studentName: 'Grace Hopper', department: 'CSE', year: 2024, packageLPA: 30 },
-    { company: amazon._id, studentName: 'Henry Pym', department: 'ECE', year: 2024, packageLPA: 28 },
-    { company: amazon._id, studentName: 'Iris West', department: 'EEE', year: 2024, packageLPA: 22 },
-    { company: TCS._id, studentName: 'Jack Reacher', department: 'ME', year: 2024, packageLPA: 4 },
-
-    // 2023
-    { company: microsoft._id, studentName: 'Karen Page', department: 'CSE', year: 2023, packageLPA: 28 },
-    { company: amazon._id, studentName: 'Luke Cage', department: 'CSE', year: 2023, packageLPA: 26 },
-    { company: TCS._id, studentName: 'Matt Murdock', department: 'ECE', year: 2023, packageLPA: 4 }
-  ];
-
-  await PlacementRecord.create(records);
+const requireField = (value, message) => {
+  if (value === undefined || value === null || value === '') {
+    throw new AppError(message, 400, 'VALIDATION_ERROR');
+  }
 };
 
-/**
- * GET /api/placement/dashboard
- * Fetch aggregated metrics for placements.
- */
+const getStudentProfile = async (studentUserId) => {
+  const client = db();
+  const { data, error } = await client
+    .from('students')
+    .select('student_id, user_id, roll_number, section, cgpa, active_backlogs, departments(*), semesters(*), users(*)')
+    .eq('user_id', studentUserId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  return {
+    studentId: data.student_id,
+    rollNumber: data.roll_number,
+    section: data.section,
+    cgpa: data.cgpa,
+    activeBacklogs: data.active_backlogs,
+    departmentId: data.departments?.department_id || null,
+    departmentName: data.departments?.department_name || null,
+    departmentCode: data.departments?.department_code || null,
+    semesterId: data.semesters?.semester_id || null,
+    semesterNumber: data.semesters?.semester_number || null,
+    academicYear: data.semesters?.academic_year || null,
+  };
+};
+
+const toCompany = (row, extras = {}) => ({
+  _id: row.company_id,
+  id: row.company_id,
+  name: row.company_name,
+  role: row.role,
+  package: row.package,
+  eligibility: row.eligibility || {},
+  driveDate: row.drive_date,
+  website: row.website_url || null,
+  description: row.description || null,
+  eligibilityStatus: extras.eligibilityStatus || null,
+  isApplied: extras.isApplied || false,
+});
+
 const getDashboardStats = async (req, res, next) => {
   try {
-    await seedPlacementDataIfEmpty();
-
-    // 1. Core aggregates (Min, Average, Max package, Total selections)
-    const packageStats = await PlacementRecord.aggregate([
-      {
-        $group: {
-          _id: null,
-          minPackage: { $min: '$packageLPA' },
-          maxPackage: { $max: '$packageLPA' },
-          avgPackage: { $avg: '$packageLPA' },
-          totalPlaced: { $sum: 1 }
-        }
-      }
+    const client = db();
+    const [{ count: companyCount }, { count: applicationCount }, { count: resultCount }, { count: placedCount }] = await Promise.all([
+      client.from('companies').select('company_id', { count: 'exact', head: true }),
+      client.from('placement_applications').select('application_id', { count: 'exact', head: true }),
+      client.from('placement_results').select('result_id', { count: 'exact', head: true }),
+      client.from('placement_results').select('result_id', { count: 'exact', head: true }).eq('result', 'selected'),
     ]);
 
-    const stats = packageStats[0] || { minPackage: 0, maxPackage: 0, avgPackage: 0, totalPlaced: 0 };
-
-    // 2. Company-wise selected counts
-    const companyStats = await PlacementRecord.aggregate([
-      {
-        $group: {
-          _id: '$company',
-          selectionsCount: { $sum: 1 }
-        }
-      },
-      {
-        $lookup: {
-          from: 'companies',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'companyInfo'
-        }
-      },
-      { $unwind: '$companyInfo' },
-      {
-        $project: {
-          name: '$companyInfo.name',
-          selectionsCount: 1
-        }
-      },
-      { $sort: { selectionsCount: -1 } }
-    ]);
-
-    // 3. Year-wise placement statistics
-    const yearStats = await PlacementRecord.aggregate([
-      {
-        $group: {
-          _id: '$year',
-          selectionsCount: { $sum: 1 },
-          avgPackage: { $avg: '$packageLPA' }
-        }
-      },
-      { $project: { year: '$_id', selectionsCount: 1, avgPackage: { $round: ['$avgPackage', 1] } } },
-      { $sort: { year: 1 } }
-    ]);
-
-    // 4. Department-wise placement statistics
-    const deptStats = await PlacementRecord.aggregate([
-      {
-        $group: {
-          _id: '$department',
-          selectionsCount: { $sum: 1 },
-          avgPackage: { $avg: '$packageLPA' }
-        }
-      },
-      { $project: { department: '$_id', selectionsCount: 1, avgPackage: { $round: ['$avgPackage', 1] } } },
-      { $sort: { selectionsCount: -1 } }
-    ]);
-
-    const totalCompanies = await Company.countDocuments();
+    const { data: results } = await client
+      .from('placement_results')
+      .select('student_id, company_id, package, result, companies(company_name, role)')
+      .order('created_at', { ascending: false });
+      
+    const deptStats = [];
+    const { data: students } = await client.from('students').select('student_id, cgpa, departments(department_code)');
+    const totalStudents = students?.length || 0;
+    const byDept = new Map();
+    
+    (results || []).forEach((row) => {
+      const student = students?.find((item) => item.student_id === row.student_id);
+      const dept = student?.departments?.department_code || 'Unknown';
+      const bucket = byDept.get(dept) || { department: dept, selectionsCount: 0, avgPackage: 0, packages: [] };
+      bucket.selectionsCount += row.result === 'selected' ? 1 : 0;
+      if (row.package) bucket.packages.push(Number(row.package));
+      byDept.set(dept, bucket);
+    });
+    
+    for (const bucket of byDept.values()) {
+      bucket.avgPackage = bucket.packages.length ? Number((bucket.packages.reduce((sum, pkg) => sum + pkg, 0) / bucket.packages.length).toFixed(2)) : 0;
+      delete bucket.packages;
+      deptStats.push(bucket);
+    }
 
     res.json({
       success: true,
       data: {
-        totalCompanies,
-        totalPlaced: stats.totalPlaced,
-        minPackage: stats.minPackage,
-        maxPackage: stats.maxPackage,
-        avgPackage: Math.round(stats.avgPackage * 10) / 10,
-        companySelections: companyStats,
-        yearStats,
-        deptStats
-      }
+        totalCompanies: companyCount || 0,
+        totalApplications: applicationCount || 0,
+        totalResults: resultCount || 0,
+        totalPlaced: placedCount || 0,
+        deptStats,
+        placementRate: totalStudents ? Number(((placedCount || 0) / totalStudents * 100).toFixed(1)) : 0,
+      },
     });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * GET /api/placement/companies
-<<<<<<< HEAD
- * List all companies.
-=======
- * List all companies. If requested by a student, append eligibility status.
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
- */
 const listCompanies = async (req, res, next) => {
   try {
-    await seedPlacementDataIfEmpty();
-<<<<<<< HEAD
-    const companies = await Company.find().sort({ name: 1 });
-=======
-    const companies = await Company.find().sort({ name: 1 }).lean();
+    const client = db();
+    const { data, error } = await client.from('companies').select('*').order('drive_date', { ascending: true });
+    if (error) throw error;
 
-    // If user is a student, attach eligibility calculation
+    let student = null;
     if (req.user && req.user.role === 'student') {
-      const student = await require('../models/User').findById(req.user.id).select('cgpa department backlogs');
-      
-      companies.forEach(comp => {
-        let isEligible = true;
-        let reason = [];
-
-        if (student) {
-          const minCGPA = comp.eligibility?.minCGPA || 0;
-          if (student.cgpa < minCGPA) {
-            isEligible = false;
-            reason.push(`CGPA (${student.cgpa}) is below required ${minCGPA}`);
-          }
-
-          const allowedBranches = comp.eligibility?.allowedBranches || [];
-          if (allowedBranches.length > 0 && !allowedBranches.includes(student.department)) {
-            isEligible = false;
-            reason.push(`Branch (${student.department}) not eligible`);
-          }
-
-          const maxBacklogs = comp.eligibility?.maxBacklogs || 0;
-          const studentBacklogs = student.backlogs || 0;
-          if (studentBacklogs > maxBacklogs) {
-            isEligible = false;
-            reason.push(`Backlogs (${studentBacklogs}) exceed maximum allowed (${maxBacklogs})`);
-          }
-        }
-
-        comp.eligibilityStatus = isEligible ? 'Eligible' : 'Not Eligible';
-        comp.ineligibilityReason = isEligible ? null : reason.join(' | ');
-      });
+      student = await getStudentProfile(req.user.id);
     }
 
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
+    const appliedIds = new Set();
+    if (student) {
+      const { data: applications } = await client.from('placement_applications').select('company_id').eq('student_id', student.studentId);
+      (applications || []).forEach((row) => appliedIds.add(row.company_id));
+    }
+
+    const companies = (data || []).map((row) => {
+      let eligibilityStatus = null;
+      if (student) {
+        const minCgpa = Number(row.eligibility?.minCGPA || 0);
+        const allowedBranches = row.eligibility?.allowedBranches || [];
+        const cgpaOk = Number(student.cgpa || 0) >= minCgpa;
+        const branchOk = !allowedBranches.length || allowedBranches.includes(student.departmentCode || student.departmentName || '');
+        eligibilityStatus = cgpaOk && branchOk ? 'Eligible' : 'Not Eligible';
+      }
+      return toCompany(row, { eligibilityStatus, isApplied: appliedIds.has(row.company_id) });
+    });
+
     res.json({ success: true, data: companies });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * POST /api/placement/companies
- * Create a new company profile (Teacher only).
- */
 const createCompany = async (req, res, next) => {
   try {
-    const { name, website, description, rolesOffered, eligibility, recruitmentProcess, visitedYears } = req.body;
+    const { name, role, package: packageAmount, eligibility, driveDate, website, description } = req.body;
+    requireField(name, 'name is required.');
+    const extractedRole = role || (req.body.rolesOffered && req.body.rolesOffered[0]?.title) || 'Software Engineer';
+    const extractedPackage = packageAmount || (req.body.rolesOffered && req.body.rolesOffered[0]?.packageLPA) || 0;
+    const extractedDriveDate = driveDate || new Date(Date.now() + 30*24*60*60*1000).toISOString();
 
-    const existing = await Company.findOne({ name });
-    if (existing) {
-      throw new AppError('A company with this name already exists.', 409, 'DUPLICATE_KEY');
-    }
-
-    const company = await Company.create({
-      name,
-      website,
-      description,
-      rolesOffered,
-      eligibility,
-      recruitmentProcess,
-      visitedYears
-    });
-
-    res.status(201).json({ success: true, data: company });
+    const client = db();
+    const { data, error } = await client.from('companies').insert({
+      company_name: name,
+      role: extractedRole,
+      package: extractedPackage,
+      eligibility: eligibility || {},
+      drive_date: extractedDriveDate,
+      website_url: website || null,
+      description: description || null,
+    }).select('*').single();
+    if (error) throw error;
+    res.status(201).json({ success: true, data: toCompany(data) });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * GET /api/placement/companies/:id
- * Get detailed company info.
- */
 const getCompanyDetails = async (req, res, next) => {
   try {
-    const company = await Company.findById(req.params.id);
-    if (!company) {
-      throw new AppError('Company not found.', 404, 'NOT_FOUND');
+    const client = db();
+    const { data, error } = await client
+      .from('companies')
+      .select('*')
+      .eq('company_id', req.params.id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) throw new AppError('Company not found.', 404, 'NOT_FOUND');
+
+    let student = null;
+    let isApplied = false;
+    if (req.user && req.user.role === 'student') {
+      student = await getStudentProfile(req.user.id);
+      if (student) {
+        const { data: application } = await client.from('placement_applications').select('application_id').eq('student_id', student.studentId).eq('company_id', req.params.id).maybeSingle();
+        isApplied = !!application;
+      }
     }
-    res.json({ success: true, data: company });
+
+    res.json({ success: true, data: toCompany(data, { isApplied }) });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * GET /api/placement/companies/:id/experiences
- * Get interview experiences for a company.
- */
 const listExperiences = async (req, res, next) => {
   try {
-    const experiences = await InterviewExperience.find({ company: req.params.id })
-      .populate('student', 'name email profilePicture')
-      .sort({ createdAt: -1 });
-
-    res.json({ success: true, data: experiences });
+    const client = db();
+    const { data, error } = await client
+      .from('interview_experiences')
+      .select('experience_id, company_id, student_id, role, year, difficulty, experience_text, status, created_at')
+      .eq('company_id', req.params.id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * POST /api/placement/companies/:id/experiences
- * Add an interview experience (Student only).
- */
 const createExperience = async (req, res, next) => {
   try {
     const { role, year, difficulty, experienceText, status } = req.body;
-    const companyId = req.params.id;
-
-    const company = await Company.findById(companyId);
-    if (!company) {
-      throw new AppError('Company not found.', 404, 'NOT_FOUND');
-    }
-
-    const experience = await InterviewExperience.create({
-      company: companyId,
-      student: req.user.id,
-      role,
-      year,
-      difficulty,
-      experienceText,
-      status
-    });
-
-    res.status(201).json({ success: true, data: experience });
+    const student = await getStudentProfile(req.user.id);
+    const client = db();
+    const { data, error } = await client.from('interview_experiences').insert({
+      company_id: req.params.id,
+      student_id: student?.studentId || null,
+      role: role || null,
+      year: year || null,
+      difficulty: difficulty || null,
+      experience_text: experienceText || null,
+      status: status || null,
+    }).select('*').single();
+    if (error) throw error;
+    res.status(201).json({ success: true, data });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * POST /api/placement/records
- * Create a new placement record (Teacher only).
- */
 const createPlacementRecord = async (req, res, next) => {
   try {
     const { companyId, studentName, studentEmail, department, year, packageLPA } = req.body;
+    requireField(companyId, 'companyId is required.');
+    const client = db();
+    const { data: company, error: companyError } = await client.from('companies').select('*').eq('company_id', companyId).maybeSingle();
+    if (companyError) throw companyError;
+    if (!company) throw new AppError('Company not found.', 404, 'NOT_FOUND');
 
-    const company = await Company.findById(companyId);
-    if (!company) {
-      throw new AppError('Company not found.', 404, 'NOT_FOUND');
+    let studentId = null;
+    if (studentEmail) {
+      const { data: studentUser } = await client.from('users').select('user_id').eq('email', studentEmail.toLowerCase()).maybeSingle();
+      if (studentUser) {
+        const { data: studentProfile } = await client.from('students').select('student_id').eq('user_id', studentUser.user_id).maybeSingle();
+        studentId = studentProfile?.student_id || null;
+      }
     }
 
-    const record = await PlacementRecord.create({
-      company: companyId,
-      studentName,
-      studentEmail,
-      department,
-      year,
-      packageLPA
-    });
+    const { data, error } = await client.from('placement_results').insert({
+      student_id: studentId,
+      company_id: companyId,
+      package: packageLPA || company.package || null,
+      result: 'selected',
+      student_name: studentName || null,
+      student_email: studentEmail || null,
+      department: department || null,
+      passed_year: year || null,
+    }).select('*').single();
+    if (error) throw error;
+    res.status(201).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
 
-    res.status(201).json({ success: true, data: record });
+const applyToCompany = async (req, res, next) => {
+  try {
+    const client = db();
+    const student = await getStudentProfile(req.user.id);
+    if (!student) throw new AppError('Student profile not found', 404, 'NOT_FOUND');
+    
+    const { error } = await client.from('placement_applications').upsert({
+      student_id: student.studentId,
+      company_id: req.params.id,
+      status: 'applied',
+    }, { onConflict: 'student_id,company_id' });
+    
+    if (error) throw error;
+    res.json({ success: true, message: 'Successfully applied to company' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const withdrawApplication = async (req, res, next) => {
+  try {
+    const client = db();
+    const student = await getStudentProfile(req.user.id);
+    if (!student) throw new AppError('Student profile not found', 404, 'NOT_FOUND');
+
+    const { error } = await client.from('placement_applications').delete()
+      .eq('student_id', student.studentId)
+      .eq('company_id', req.params.id);
+      
+    if (error) throw error;
+    res.json({ success: true, message: 'Application withdrawn' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getStudentApplications = async (req, res, next) => {
+  try {
+    const client = db();
+    const student = await getStudentProfile(req.user.id);
+    if (!student) return res.json({ success: true, data: [] });
+
+    const { data, error } = await client.from('placement_applications')
+      .select('application_id, status, applied_at, companies(*)')
+      .eq('student_id', student.studentId);
+      
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
   } catch (error) {
     next(error);
   }
@@ -366,4 +320,7 @@ module.exports = {
   listExperiences,
   createExperience,
   createPlacementRecord,
+  applyToCompany,
+  withdrawApplication,
+  getStudentApplications,
 };

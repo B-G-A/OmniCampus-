@@ -30,20 +30,15 @@ function TpoDashboard() {
   const [deptFilter, setDeptFilter] = useState("ALL");
   const [filteredStudents, setFilteredStudents] = useState([]);
 
-  // Mock Drives
-  const drives = [
-    { id: 1, name: "Google", date: "June 18, 2026", status: "Confirmed" },
-    { id: 2, name: "Microsoft", date: "June 22, 2026", status: "Confirmed" },
-    { id: 3, name: "TCS", date: "July 01, 2026", status: "Scheduled" }
-  ];
+  const drives = dashboardStats?.drives || [];
 
   // Fetch Dashboard Stats and Companies
   const loadDashboardData = async () => {
     setLoading(true);
     try {
       const [statsRes, compRes] = await Promise.all([
-        api.get("/placement/dashboard"),
-        api.get("/placement/companies")
+        api.get("/placements/dashboard"),
+        api.get("/placements/companies")
       ]);
       if (statsRes && statsRes.success) setDashboardStats(statsRes.data);
       if (compRes && compRes.success) {
@@ -88,7 +83,7 @@ function TpoDashboard() {
     if (!compName.trim() || !compRole.trim() || !compPackage) return;
     try {
       const branchesArray = compBranches.split(",").map(b => b.trim().toUpperCase());
-      const res = await api.post("/placement/companies", {
+      const res = await api.post("/placements/companies", {
         name: compName,
         website: compWebsite,
         description: compDesc,
@@ -120,7 +115,7 @@ function TpoDashboard() {
     e.preventDefault();
     if (!resCompany || !resStudentName.trim() || !resStudentEmail.trim() || !resPackage) return;
     try {
-      const res = await api.post("/placement/records", {
+      const res = await api.post("/placements/records", {
         companyId: resCompany,
         studentName: resStudentName,
         studentEmail: resStudentEmail.toLowerCase(),
@@ -183,7 +178,7 @@ function TpoDashboard() {
           <div style={statsGridStyle}>
             <div style={statCardStyle("linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)")}>
               <small>Placement Rate</small>
-              <h3>57.8%</h3>
+              <h3>{dashboardStats?.placementRate ?? 0}%</h3>
               <p>Overall selections rate</p>
             </div>
             <div style={statCardStyle("linear-gradient(135deg, #10b981 0%, #047857 100%)")}>
@@ -402,7 +397,7 @@ function TpoDashboard() {
               </div>
               <div style={{ marginBottom: '12px' }}>
                 <label style={formLabelStyle}>Student Name</label>
-                <input type="text" placeholder="Abhishna" value={resStudentName} onChange={(e) => setResStudentName(e.target.value)} required style={formInputStyle} />
+                <input type="text" placeholder="Student name" value={resStudentName} onChange={(e) => setResStudentName(e.target.value)} required style={formInputStyle} />
               </div>
               <div style={{ marginBottom: '12px' }}>
                 <label style={formLabelStyle}>Student Email</label>

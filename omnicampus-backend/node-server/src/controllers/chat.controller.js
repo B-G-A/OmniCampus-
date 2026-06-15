@@ -1,143 +1,227 @@
-/**
- * Chat controller.
- *
- * Send queries to the AI RAG pipeline, manage sessions, and retrieve history.
- */
-
-const { v4: uuidv4 } = require('uuid');
-const ChatHistory = require('../models/ChatHistory');
-const Subject = require('../models/Subject');
-const Semester = require('../models/Semester');
-const aiProxy = require('../services/aiProxy.service');
-<<<<<<< HEAD
-=======
-const Attendance = require('../models/Attendance');
-const Mark = require('../models/Mark');
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
+const { getSupabaseAdmin } = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
+const aiProxy = require('../services/aiProxy.service');
 
-/**
- * POST /api/chat/query
- * Validate enrollment, fetch context, call AI, persist messages.
- */
+const db = () => getSupabaseAdmin();
+
+const requireField = (value, message) => {
+  if (value === undefined || value === null || value === '') {
+    throw new AppError(message, 400, 'VALIDATION_ERROR');
+  }
+};
+
+const getStudentProfile = async (studentUserId) => {
+  const client = db();
+  const { data, error } = await client
+    .from('students')
+    .select('student_id, user_id, roll_number, section, cgpa, active_backlogs, departments(*), semesters(*), users(*)')
+    .eq('user_id', studentUserId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  return {
+    studentId: data.student_id,
+    rollNumber: data.roll_number,
+    section: data.section,
+    cgpa: data.cgpa,
+    activeBacklogs: data.active_backlogs,
+    departmentId: data.departments?.department_id || null,
+    departmentName: data.departments?.department_name || null,
+    departmentCode: data.departments?.department_code || null,
+    semesterId: data.semesters?.semester_id || null,
+    semesterNumber: data.semesters?.semester_number || null,
+    academicYear: data.semesters?.academic_year || null,
+  };
+};
+
+const getSubjectById = async (subjectId) => {
+  const client = db();
+  const { data, error } = await client
+    .from('subjects')
+    .select('subject_id, subject_name, subject_code, credits, department_id, semester_id, description, banner_color, departments(*), semesters(*)')
+    .eq('subject_id', subjectId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+};
+
+const toChatSession = (row) => ({
+  _id: row.session_id,
+  id: row.session_id,
+  studentId: row.student_id,
+  subjectId: row.subject_id,
+  createdAt: row.created_at,
+  lastActive: row.last_active,
+});
+
+const toChatMessage = (row) => ({
+  _id: row.message_id,
+  id: row.message_id,
+  sessionId: row.session_id,
+  role: row.role,
+  message: row.message,
+  response: row.response,
+  sources: row.sources || [],
+  createdAt: row.created_at,
+});
+
+const createNewSession = async (req, res, next) => {
+  try {
+    const { subjectId } = req.body;
+    requireField(subjectId, 'subjectId is required.');
+    const student = await getStudentProfile(req.user.id);
+    const client = db();
+    const { data, error } = await client
+      .from('chat_sessions')
+      .insert({ student_id: student?.studentId || req.user.id, subject_id: subjectId })
+      .select('*')
+      .single();
+    if (error) throw error;
+    res.status(201).json({ success: true, data: { sessionId: data.session_id, id: data.session_id } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getChatHistory = async (req, res, next) => {
+  try {
+    const student = await getStudentProfile(req.user.id);
+    const client = db();
+    const query = client.from('chat_sessions').select('*').eq('student_id', student?.studentId || req.user.id).order('last_active', { ascending: false });
+    if (req.query.subjectId) query.eq('subject_id', req.query.subjectId);
+    
+    // Pagination
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+    const skip = (page - 1) * limit;
+    
+    query.range(skip, skip + limit - 1);
+    
+    const { data, error, count } = await query.select('*', { count: 'exact' });
+    if (error) throw error;
+    
+    res.set('X-Total-Count', count || 0);
+    res.json({ 
+      success: true, 
+      data: (data || []).map((row) => ({ 
+        sessionId: row.session_id, 
+        subjectId: row.subject_id, 
+        createdAt: row.created_at, 
+        lastActive: row.last_active,
+        _id: row.session_id,
+        id: row.session_id
+      })),
+      pagination: { page, limit, total: count || 0, pages: Math.ceil((count || 0) / limit) }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getSessionMessages = async (req, res, next) => {
+  try {
+    const student = await getStudentProfile(req.user.id);
+    const client = db();
+    const { data: session, error: sessionError } = await client
+      .from('chat_sessions')
+      .select('*')
+      .eq('session_id', req.params.sessionId)
+      .eq('student_id', student?.studentId || req.user.id)
+      .maybeSingle();
+    if (sessionError) throw sessionError;
+    if (!session) throw new AppError('Chat session not found.', 404, 'NOT_FOUND');
+    const { data: messages, error } = await client
+      .from('chat_messages')
+      .select('*')
+      .eq('session_id', req.params.sessionId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    res.json({ success: true, data: { ...toChatSession(session), messages: (messages || []).map(toChatMessage) } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const sendQuery = async (req, res, next) => {
   try {
-    const { message, subjectId, sessionId, allowExternal } = req.body;
+    const { message, subjectId, sessionId } = req.body;
+    requireField(message, 'message is required.');
+    requireField(subjectId, 'subjectId is required.');
 
-    if (!message || !subjectId || !sessionId) {
-      throw new AppError('message, subjectId, and sessionId are required.', 400, 'VALIDATION_ERROR');
+    const student = await getStudentProfile(req.user.id);
+    const client = db();
+    let sessionRow = null;
+    if (sessionId) {
+      const { data } = await client
+        .from('chat_sessions')
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('student_id', student?.studentId || req.user.id)
+        .maybeSingle();
+      sessionRow = data || null;
+    }
+    if (!sessionRow) {
+      const { data, error } = await client
+        .from('chat_sessions')
+        .insert({ student_id: student?.studentId || req.user.id, subject_id: subjectId })
+        .select('*')
+        .single();
+      if (error) throw error;
+      sessionRow = data;
     }
 
-    // Verify subject exists
-    const subject = await Subject.findById(subjectId);
-    if (!subject) {
-      throw new AppError('Subject not found.', 404, 'NOT_FOUND');
-    }
-
-    // Verify student is enrolled
-    const isEnrolled = subject.enrolledStudents.some(
-      (s) => s.toString() === req.user.id
-    );
-    if (!isEnrolled) {
-      throw new AppError('You must be enrolled in this subject to chat.', 403, 'FORBIDDEN');
-    }
-
-    // Get active semester for vector collection name
-    const semester = await Semester.findById(subject.semester);
-    if (!semester || !semester.vectorCollectionName) {
-      throw new AppError('Active semester or vector collection not found.', 404, 'NOT_FOUND');
-    }
-
-    // Fetch recent chat history (last 10 messages for context)
-    let chatSession = await ChatHistory.findOne({ sessionId });
-    if (!chatSession) {
-      throw new AppError('Chat session not found. Create a new session first.', 404, 'NOT_FOUND');
-    }
-
-    const recentMessages = chatSession.messages.slice(-10).map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-
-<<<<<<< HEAD
-=======
-    // Fetch context
-    const attendances = await Attendance.find({ student: req.user.id, subject: subjectId });
-    const marks = await Mark.find({ student: req.user.id, subject: subjectId });
+    const { data: history } = await client
+      .from('chat_messages')
+      .select('role, message, response, sources, created_at')
+      .eq('session_id', sessionRow.session_id)
+      .order('created_at', { ascending: true })
+      .limit(12);
+      
+    const subject = await getSubjectById(subjectId);
     
-    let totalClasses = attendances.length;
-    let presentClasses = attendances.filter(a => a.status === 'Present').length;
-    const attPercentage = totalClasses > 0 ? ((presentClasses / totalClasses) * 100).toFixed(1) + '%' : 'N/A';
-
-    const userContext = {
-      name: req.user.name || 'Student',
-      subject: subject.name,
-      attendance: attPercentage,
-      marks: marks.length > 0 ? marks[0] : 'No marks uploaded yet'
-    };
-
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
-    // Call AI RAG service
-    const aiResponse = await aiProxy.queryRAG({
+    const aiResult = await aiProxy.queryRAG({
       message,
-      collectionName: semester.vectorCollectionName,
-      subjectId: subjectId,
-      allowExternal: allowExternal || false,
-      chatHistory: recentMessages,
-<<<<<<< HEAD
-=======
-      userContext
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
+      collectionName: `subject_${subjectId}`,
+      subjectId,
+      chatHistory: (history || []).map((entry) => ({
+        role: entry.role === 'user' ? 'user' : 'assistant',
+        content: entry.role === 'user' ? entry.message : entry.response || entry.message,
+      })),
+      userContext: {
+        studentId: student?.studentId || req.user.id,
+        subjectName: subject?.subject_name || null,
+        subjectCode: subject?.subject_code || null,
+      },
+      allowExternal: false,
     });
 
-    // Save user message
-    chatSession.messages.push({
-      role: 'user',
-      content: message,
-      sources: [],
-      usedExternalSearch: false,
-    });
-
-<<<<<<< HEAD
-    // Save assistant response
-    chatSession.messages.push({
+    const assistantMessage = {
+      session_id: sessionRow.session_id,
       role: 'assistant',
-      content: aiResponse.answer || aiResponse.response || '',
-=======
-    let finalAnswer = aiResponse.answer || aiResponse.response || '';
-    if (!finalAnswer && aiResponse.prompt_external) {
-      finalAnswer = "I couldn't find an answer in your course materials. Would you like me to search my general knowledge? (Note: External search is currently disabled in the UI)";
-    }
-    if (!finalAnswer) {
-      finalAnswer = "I'm sorry, I couldn't generate an answer at this time.";
-    }
-
-    // Save assistant response
-    chatSession.messages.push({
-      role: 'assistant',
-      content: finalAnswer,
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
-      sources: aiResponse.sources || [],
-      usedExternalSearch: aiResponse.usedExternalSearch || false,
-    });
-
-    await chatSession.save();
+      message,
+      response: aiResult?.answer || aiResult?.response || (aiResult?.prompt_external ? "I couldn't find any relevant information in the uploaded notes. Please ask questions related to the uploaded PDFs, or upload new materials if none are available." : ''),
+      sources: aiResult?.sources || [],
+    };
+    
+    await client.from('chat_messages').insert([
+      { session_id: sessionRow.session_id, role: 'user', message, sources: [] },
+      assistantMessage,
+    ]);
+    
+    await client.from('chat_sessions').update({ last_active: new Date().toISOString() }).eq('session_id', sessionRow.session_id);
 
     res.json({
       success: true,
       data: {
-<<<<<<< HEAD
-        answer: aiResponse.answer || aiResponse.response || '',
-        sources: aiResponse.sources || [],
-        usedExternalSearch: aiResponse.usedExternalSearch || false,
-=======
-        answer: finalAnswer,
-        sources: aiResponse.sources || [],
-        usedExternalSearch: aiResponse.used_external || aiResponse.usedExternalSearch || false,
-        confidence_score: aiResponse.confidence_score || 0,
-        page_number: aiResponse.page_number || null,
-        related_topics: aiResponse.related_topics || [],
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
+        answer: aiResult?.answer || aiResult?.response || (aiResult?.prompt_external ? "I couldn't find any relevant information in the uploaded notes. Please ask questions related to the uploaded PDFs, or upload new materials if none are available." : ''),
+        response: aiResult?.response || aiResult?.answer || (aiResult?.prompt_external ? "I couldn't find any relevant information in the uploaded notes. Please ask questions related to the uploaded PDFs, or upload new materials if none are available." : ''),
+        sources: aiResult?.sources || [],
+        confidence_score: aiResult?.confidence_score || aiResult?.confidence || null,
+        page_number: aiResult?.page_number || null,
+        related_topics: aiResult?.related_topics || [],
+        sessionId: sessionRow.session_id,
       },
     });
   } catch (error) {
@@ -145,119 +229,22 @@ const sendQuery = async (req, res, next) => {
   }
 };
 
-/**
- * GET /api/chat/history?subjectId=...
- * Paginated list of chat sessions for the authenticated user.
- */
-const getChatHistory = async (req, res, next) => {
-  try {
-    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
-    const skip = (page - 1) * limit;
-
-    const filter = { user: req.user.id };
-    if (req.query.subjectId) filter.subject = req.query.subjectId;
-
-    const [sessions, total] = await Promise.all([
-      ChatHistory.find(filter)
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .select('sessionId subject semester createdAt updatedAt')
-        .populate('subject', 'name code')
-        .populate('semester', 'name year'),
-      ChatHistory.countDocuments(filter),
-    ]);
-
-    res.set('X-Total-Count', total);
-    res.json({
-      success: true,
-      data: sessions,
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * GET /api/chat/session/:sessionId
- * Return all messages for a specific session.
- */
-const getSessionMessages = async (req, res, next) => {
-  try {
-    const session = await ChatHistory.findOne({
-      sessionId: req.params.sessionId,
-      user: req.user.id,
-    }).populate('subject', 'name code');
-
-    if (!session) {
-      throw new AppError('Chat session not found.', 404, 'NOT_FOUND');
-    }
-
-    res.json({ success: true, data: session });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * DELETE /api/chat/session/:sessionId
- * Delete a chat session.
- */
 const deleteSession = async (req, res, next) => {
   try {
-    const session = await ChatHistory.findOneAndDelete({
-      sessionId: req.params.sessionId,
-      user: req.user.id,
-    });
+    const student = await getStudentProfile(req.user.id);
+    const client = db();
+    const { data, error } = await client
+      .from('chat_sessions')
+      .delete()
+      .eq('session_id', req.params.sessionId)
+      .eq('student_id', student?.studentId || req.user.id)
+      .select()
+      .maybeSingle();
 
-    if (!session) {
-      throw new AppError('Chat session not found.', 404, 'NOT_FOUND');
-    }
+    if (error) throw error;
+    if (!data) throw new AppError('Chat session not found.', 404, 'NOT_FOUND');
 
     res.json({ success: true, message: 'Chat session deleted.' });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * POST /api/chat/session
- * Create a new chat session, return the sessionId.
- */
-const createNewSession = async (req, res, next) => {
-  try {
-    const { subjectId } = req.body;
-
-    if (!subjectId) {
-      throw new AppError('subjectId is required.', 400, 'VALIDATION_ERROR');
-    }
-
-    const subject = await Subject.findById(subjectId);
-    if (!subject) {
-      throw new AppError('Subject not found.', 404, 'NOT_FOUND');
-    }
-
-    const semester = await Semester.findById(subject.semester);
-    if (!semester) {
-      throw new AppError('Semester not found.', 404, 'NOT_FOUND');
-    }
-
-    const sessionId = uuidv4();
-
-    const chatSession = await ChatHistory.create({
-      user: req.user.id,
-      subject: subjectId,
-      semester: semester._id,
-      sessionId,
-      messages: [],
-    });
-
-    res.status(201).json({
-      success: true,
-      data: { sessionId: chatSession.sessionId, id: chatSession._id },
-    });
   } catch (error) {
     next(error);
   }

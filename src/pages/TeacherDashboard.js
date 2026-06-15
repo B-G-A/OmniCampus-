@@ -14,12 +14,9 @@ function TeacherDashboard() {
   const [file, setFile] = useState(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
-<<<<<<< HEAD
-=======
   const [department, setDepartment] = useState("");
   const [semester, setSemester] = useState("");
   const [unit, setUnit] = useState("");
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
   const [uploading, setUploading] = useState(false);
 
   // Attendance state
@@ -31,17 +28,6 @@ function TeacherDashboard() {
   const [assignTitle, setAssignTitle] = useState("");
   const [assignDueDate, setAssignDueDate] = useState("");
   const [assignDesc, setAssignDesc] = useState("");
-<<<<<<< HEAD
-  const [assignments, setAssignments] = useState([
-    { id: 1, title: "Lab 3: Shift-Reduce Parsing", dueDate: "2026-06-12", desc: "Implement a shift-reduce parser in C or Python.", submissionsCount: 2 }
-  ]);
-  const [submissions, setSubmissions] = useState([
-    { id: 101, studentName: "Abhishna", assignmentTitle: "Lab 3: Shift-Reduce Parsing", submittedAt: "2026-06-10", grade: "", feedback: "" },
-    { id: 102, studentName: "Rohan Gupta", assignmentTitle: "Lab 3: Shift-Reduce Parsing", submittedAt: "2026-06-10", grade: "A", feedback: "Excellent implementation." }
-  ]);
-
-  // Marks Upload state
-=======
   const [assignSubject, setAssignSubject] = useState("");
   const [assignFile, setAssignFile] = useState(null);
   const [assignments, setAssignments] = useState([]);
@@ -50,7 +36,6 @@ function TeacherDashboard() {
 
   // Marks Upload state
   const [marksSubject, setMarksSubject] = useState("");
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
   const [marksRecords, setMarksRecords] = useState({});
 
   // Notices state
@@ -74,11 +59,8 @@ function TeacherDashboard() {
           if (subjectsRes.data.length > 0) {
             setSelectedSubject(subjectsRes.data[0]._id);
             setAttSubject(subjectsRes.data[0]._id);
-<<<<<<< HEAD
-=======
             setMarksSubject(subjectsRes.data[0]._id);
             setAssignSubject(subjectsRes.data[0]._id);
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
           }
         }
         if (studentsRes && studentsRes.success) setStudents(studentsRes.data);
@@ -114,8 +96,6 @@ function TeacherDashboard() {
     fetchStudentsForAttendance();
   }, [attSubject]);
 
-<<<<<<< HEAD
-=======
   const fetchAssignments = async () => {
     try {
       const res = await api.get("/assignments/teacher");
@@ -145,7 +125,6 @@ function TeacherDashboard() {
     }
   }, [activeTab]);
 
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
   const handleFileUpload = async (e) => {
     e.preventDefault();
     if (!file || !noteTitle.trim() || !selectedSubject) {
@@ -156,13 +135,9 @@ function TeacherDashboard() {
     try {
       const formData = new FormData();
       formData.append("title", noteTitle);
-<<<<<<< HEAD
-      formData.append("subject", selectedSubject);
-=======
       formData.append("subjectId", selectedSubject);
       if (department) formData.append("department", department);
       if (unit) formData.append("unit", unit);
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
       formData.append("file", file);
 
       const res = await api.upload("/materials/upload", formData);
@@ -188,41 +163,6 @@ function TeacherDashboard() {
     }));
   };
 
-<<<<<<< HEAD
-  const handleSaveAttendance = () => {
-    alert("Attendance sheet saved successfully!");
-  };
-
-  const handleCreateAssignment = (e) => {
-    e.preventDefault();
-    if (!assignTitle.trim() || !assignDueDate || !assignDesc.trim()) return;
-    const newAssign = {
-      id: Date.now(),
-      title: assignTitle,
-      dueDate: assignDueDate,
-      desc: assignDesc,
-      submissionsCount: 0
-    };
-    setAssignments([newAssign, ...assignments]);
-    setAssignTitle("");
-    setAssignDueDate("");
-    setAssignDesc("");
-    alert("Assignment distributed successfully!");
-  };
-
-  const handleGradeSubmission = (subId, grade, feedback) => {
-    setSubmissions(prev => prev.map(s => {
-      if (s.id === subId) {
-        return { ...s, grade, feedback };
-      }
-      return s;
-    }));
-    alert("Submission graded!");
-  };
-
-  const handleSaveMarks = () => {
-    alert("Marks database updated successfully!");
-=======
   const handleSaveAttendance = async () => {
     try {
       const records = Object.keys(attendanceRecords).map(id => ({
@@ -307,22 +247,34 @@ function TeacherDashboard() {
       alert("Failed to save marks.");
       console.error(err);
     }
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
   };
 
-  const handlePostNotice = (e) => {
+  const handlePostNotice = async (e) => {
     e.preventDefault();
     if (!noticeTitle.trim() || !noticeContent.trim()) return;
-    const newNotice = {
-      id: Date.now(),
-      title: noticeTitle,
-      content: noticeContent,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
-    };
-    setNotices([newNotice, ...notices]);
-    setNoticeTitle("");
-    setNoticeContent("");
-    alert("Notice bulletin posted!");
+    
+    try {
+      const res = await api.post("/teacher/notices", {
+        title: noticeTitle,
+        message: noticeContent
+      });
+      
+      if (res && res.success) {
+        const newNotice = {
+          id: Date.now(),
+          title: noticeTitle,
+          content: noticeContent,
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+        };
+        setNotices([newNotice, ...notices]);
+        setNoticeTitle("");
+        setNoticeContent("");
+        alert("Notice bulletin posted!");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to post notice.");
+    }
   };
 
   if (loading) {
@@ -335,7 +287,7 @@ function TeacherDashboard() {
       <header style={headerStyle}>
         <div>
           <h1 style={{ fontSize: "28px", fontWeight: "800", color: "#1e293b", margin: 0 }}>
-            Welcome back, {user?.name || "Dr. Sharma"} 👋
+            Welcome back, {user?.name || "Teacher"} 👋
           </h1>
           <p style={{ color: "#64748b", margin: "4px 0 0 0", fontSize: "14px" }}>
             Faculty portal dashboard. Manage courses, attendance sheets, and grades.
@@ -522,8 +474,6 @@ function TeacherDashboard() {
                   style={formInputStyle}
                 />
               </div>
-<<<<<<< HEAD
-=======
               <div style={{ marginBottom: '12px' }}>
                 <label style={formLabelStyle}>Select Course</label>
                 <select
@@ -538,7 +488,6 @@ function TeacherDashboard() {
                   ))}
                 </select>
               </div>
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
               <div style={{ marginBottom: '16px' }}>
                 <label style={formLabelStyle}>Instructions</label>
                 <textarea
@@ -549,8 +498,6 @@ function TeacherDashboard() {
                   style={{ ...formInputStyle, height: '80px', resize: 'none' }}
                 />
               </div>
-<<<<<<< HEAD
-=======
               <div style={{ marginBottom: '16px' }}>
                 <label style={formLabelStyle}>Optional Attachment (PDF, ZIP, DOCX)</label>
                 <input
@@ -559,20 +506,10 @@ function TeacherDashboard() {
                   style={formInputStyle}
                 />
               </div>
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
               <button type="submit" style={saveBtnStyle}>Distribute Assignment</button>
             </form>
 
             <h4 style={{ marginTop: '24px', color: '#1e293b' }}>Active Assignments</h4>
-<<<<<<< HEAD
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {assignments.map(a => (
-                <div key={a.id} style={assignItemStyle}>
-                  <div style={{ flex: 1 }}>
-                    <strong style={{ fontSize: '14px', color: '#1e293b' }}>{a.title}</strong>
-                    <p style={{ margin: '4px 0', fontSize: '12px', color: '#64748b' }}>{a.desc}</p>
-                    <small style={{ color: '#475569' }}>Due: {a.dueDate}</small>
-=======
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
               {assignments.length === 0 ? <p style={{ color: '#64748b', fontSize: '13px' }}>No assignments created yet.</p> : null}
               {assignments.map(a => (
@@ -582,7 +519,6 @@ function TeacherDashboard() {
                     <p style={{ margin: '4px 0', fontSize: '12px', color: '#64748b' }}>{a.description}</p>
                     <small style={{ color: '#475569' }}>Course: {a.subject?.name} • Due: {new Date(a.dueDate).toLocaleDateString()}</small>
                     {a.fileName && <small style={{ display: 'block', color: '#3b82f6', marginTop: '4px' }}>📎 {a.fileName}</small>}
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                   </div>
                   <span style={badgeStyle('#e0f2fe', '#0369a1')}>{a.submissionsCount} Subs</span>
                 </div>
@@ -593,52 +529,6 @@ function TeacherDashboard() {
           <div style={detailsBlockStyle}>
             <h3 style={{ marginTop: 0, color: "#1e293b" }}>Submitted Assignments</h3>
             <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>Verify and evaluate student lab code submissions.</p>
-<<<<<<< HEAD
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {submissions.map(sub => (
-                <div key={sub.id} style={subCardStyle}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <strong>{sub.studentName}</strong>
-                    <small style={{ color: '#94a3b8' }}>{sub.submittedAt}</small>
-                  </div>
-                  <small style={{ display: 'block', color: '#64748b', marginBottom: '12px' }}>Task: {sub.assignmentTitle}</small>
-                  {sub.grade ? (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={badgeStyle('#d1fae5', '#065f46')}>Graded: {sub.grade}</span>
-                      <small style={{ color: '#475569', fontStyle: 'italic' }}>"{sub.feedback}"</small>
-                    </div>
-                  ) : (
-                    <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                        <input
-                          type="text"
-                          placeholder="Grade (e.g. A, B+)"
-                          id={`grade-${sub.id}`}
-                          style={gradeInputStyle}
-                        />
-                        <input
-                          type="text"
-                          placeholder="Feedback"
-                          id={`feedback-${sub.id}`}
-                          style={{ ...gradeInputStyle, flex: 1 }}
-                        />
-                      </div>
-                      <button
-                        onClick={() => {
-                          const g = document.getElementById(`grade-${sub.id}`).value;
-                          const f = document.getElementById(`feedback-${sub.id}`).value;
-                          handleGradeSubmission(sub.id, g, f);
-                        }}
-                        style={submitGradeBtnStyle}
-                      >
-                        Submit Grade
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-=======
             {!selectedAssignmentId ? (
               <p style={{ color: '#64748b', textAlign: 'center', padding: '20px' }}>Select an assignment from the left to view its submissions.</p>
             ) : submissions.length === 0 ? (
@@ -653,7 +543,13 @@ function TeacherDashboard() {
                     </div>
                     <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <small style={{ color: '#64748b' }}>Submitted File: {sub.fileName}</small>
-                      <button onClick={() => alert("Downloading: " + sub.fileName)} style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>⬇️ Download</button>
+                      <button onClick={() => {
+                        if (sub.filePath) {
+                          window.open(sub.filePath, "_blank");
+                        } else {
+                          alert("File URL not available");
+                        }
+                      }} style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>⬇️ Download</button>
                     </div>
                     {sub.grade ? (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -692,7 +588,6 @@ function TeacherDashboard() {
                 ))}
               </div>
             )}
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
           </div>
         </div>
       )}
@@ -704,11 +599,7 @@ function TeacherDashboard() {
             <h3 style={{ margin: 0, color: "#1e293b" }}>Marks Upload Board</h3>
             <div>
               <label style={{ fontSize: '14px', fontWeight: '600', color: '#334155' }}>Subject: </label>
-<<<<<<< HEAD
-              <select style={selectBoxStyle}>
-=======
               <select value={marksSubject} onChange={(e) => setMarksSubject(e.target.value)} style={selectBoxStyle}>
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                 {subjects.map(sub => (
                   <option key={sub._id} value={sub._id}>{sub.name}</option>
                 ))}
@@ -721,15 +612,9 @@ function TeacherDashboard() {
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                 <th style={thStyle}>Student Name</th>
                 <th style={thStyle}>Roll Number / Email</th>
-<<<<<<< HEAD
-                <th style={{ ...thStyle, width: '150px' }}>Mid-Term (30)</th>
-                <th style={{ ...thStyle, width: '150px' }}>End-Term (70)</th>
-                <th style={{ ...thStyle, width: '150px' }}>Practical (50)</th>
-=======
                 <th style={{ ...thStyle, width: '150px' }}>Internal 1</th>
                 <th style={{ ...thStyle, width: '150px' }}>Internal 2</th>
                 <th style={{ ...thStyle, width: '150px' }}>Assignment</th>
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
               </tr>
             </thead>
             <tbody>
@@ -741,13 +626,8 @@ function TeacherDashboard() {
                     <input
                       type="number"
                       placeholder="--"
-<<<<<<< HEAD
-                      value={marksRecords[`${student._id}-mid`] || ""}
-                      onChange={(e) => setMarksRecords({ ...marksRecords, [`${student._id}-mid`]: e.target.value })}
-=======
                       value={marksRecords[`${student._id}-int1`] || ""}
                       onChange={(e) => setMarksRecords({ ...marksRecords, [`${student._id}-int1`]: e.target.value })}
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                       style={marksInputStyle}
                     />
                   </td>
@@ -755,13 +635,8 @@ function TeacherDashboard() {
                     <input
                       type="number"
                       placeholder="--"
-<<<<<<< HEAD
-                      value={marksRecords[`${student._id}-end`] || ""}
-                      onChange={(e) => setMarksRecords({ ...marksRecords, [`${student._id}-end`]: e.target.value })}
-=======
                       value={marksRecords[`${student._id}-int2`] || ""}
                       onChange={(e) => setMarksRecords({ ...marksRecords, [`${student._id}-int2`]: e.target.value })}
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                       style={marksInputStyle}
                     />
                   </td>
@@ -769,13 +644,8 @@ function TeacherDashboard() {
                     <input
                       type="number"
                       placeholder="--"
-<<<<<<< HEAD
-                      value={marksRecords[`${student._id}-prac`] || ""}
-                      onChange={(e) => setMarksRecords({ ...marksRecords, [`${student._id}-prac`]: e.target.value })}
-=======
                       value={marksRecords[`${student._id}-assgn`] || ""}
                       onChange={(e) => setMarksRecords({ ...marksRecords, [`${student._id}-assgn`]: e.target.value })}
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                       style={marksInputStyle}
                     />
                   </td>
@@ -824,13 +694,6 @@ function TeacherDashboard() {
                 ))}
               </select>
             </div>
-<<<<<<< HEAD
-            <div style={{ marginBottom: '24px' }}>
-              <label style={formLabelStyle}>File Select (PDF, Word, or Text)</label>
-              <input
-                type="file"
-                accept=".pdf,.docx,.doc,.txt"
-=======
             <div style={{ marginBottom: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
               <div>
                 <label style={formLabelStyle}>Department</label>
@@ -850,7 +713,6 @@ function TeacherDashboard() {
               <input
                 type="file"
                 accept=".pdf,.docx,.doc,.txt,.pptx,.ppt,.png,.jpg,.jpeg,.zip,.mp4,.avi,.mkv"
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
                 onChange={(e) => setFile(e.target.files[0])}
                 required
                 style={{ ...formInputStyle, padding: '8px' }}
@@ -915,10 +777,7 @@ function TeacherDashboard() {
 }
 
 // Reuse styles for layout
-<<<<<<< HEAD
-=======
 
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
 const mainStyle = {
   padding: "40px",
   fontFamily: "Inter, system-ui, sans-serif"

@@ -102,7 +102,32 @@ def _embed_with_retry(texts: list[str]) -> list[list[float]]:
             time.sleep(backoff)
             backoff *= 2
 
-    # All retries exhausted
-    raise RuntimeError(
-        f"Embedding failed after {_MAX_RETRIES} attempts"
-    ) from last_error
+    logger.warning("All Ollama retries exhausted. Falling back to Gemini.")
+    return _embed_gemini(texts)
+
+def _embed_gemini(texts: list[str]) -> list[list[float]]:
+    """Fallback embedding generation using Gemini API."""
+    if not settings.GEMINI_API_KEY:
+        raise RuntimeError("Ollama embedding failed and GEMINI_API_KEY is not configured.")
+
+    embeddings = []
+    # Use batchEmbedContents or embedContent sequentially
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key={settings.GEMINI_API_KEY}"
+    
+    for text in texts:
+        payload = {
+            "model": "models/text-embedding-004",
+            "content": {
+                "parts": [{"text": text}]
+            }
+        }
+        try:
+            res = httpx.post(url, json=payload, timeout=30.0)
+            res.raise_for_status()
+            data = res.json()
+            embeddings.append(data["embedding"]["values"])
+        except Exception as exc:
+            logger.error("Failed to query Gemini embedding API: %s", exc)
+            raise RuntimeError(f"Both Ollama and Gemini embeddings failed: {exc}") from exc
+            
+    return embeddings

@@ -29,4 +29,13 @@ router.post('/companies/:id/experiences', roleGuard('student'), placementControl
 // Add a student placement record (TPO and Admin only)
 router.post('/records', roleGuard('tpo', 'admin'), placementController.createPlacementRecord);
 
+// Apply to a company
+router.post('/companies/:id/apply', roleGuard('student'), placementController.applyToCompany);
+
+// Withdraw application
+router.delete('/companies/:id/apply', roleGuard('student'), placementController.withdrawApplication);
+
+// Get student's applications
+router.get('/my-applications', roleGuard('student'), placementController.getStudentApplications);
+
 module.exports = router;

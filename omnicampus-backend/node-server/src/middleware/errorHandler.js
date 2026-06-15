@@ -36,17 +36,28 @@ const errorHandler = (err, _req, res, _next) => {
   let code = err.code || 'INTERNAL_ERROR';
   let message = err.message || 'Something went wrong';
 
-  // ── Mongoose-specific errors ─────────────────────────────────────
+  // ── PostgreSQL / Supabase errors ──────────────────────────────────
 
-  // Duplicate key (unique index violation)
-  if (err.code === 11000 || err.code === '11000') {
+  if (err.code === 11000 || err.code === '11000' || err.code === '23505') {
     const field = Object.keys(err.keyValue || {})[0] || 'field';
     statusCode = 409;
     code = 'DUPLICATE_KEY';
     message = `A record with that ${field} already exists.`;
   }
 
-  // Mongoose validation error
+  if (err.code === '23503') {
+    statusCode = 409;
+    code = 'FOREIGN_KEY_VIOLATION';
+    message = 'The requested record is linked to another record and cannot be removed.';
+  }
+
+  if (err.code === 'PGRST116') {
+    statusCode = 404;
+    code = 'NOT_FOUND';
+    message = 'The requested record was not found.';
+  }
+
+  // Validation-style errors raised by our handlers
   if (err.name === 'ValidationError') {
     const messages = Object.values(err.errors).map((e) => e.message);
     statusCode = 400;

@@ -1,55 +1,55 @@
-/**
- * Student dashboard controller.
- *
- * Enrolled-subjects overview and recent materials for the logged-in student.
- */
-
-const User = require('../models/User');
-const Subject = require('../models/Subject');
-const Material = require('../models/Material');
-const Semester = require('../models/Semester');
-<<<<<<< HEAD
-=======
-const Attendance = require('../models/Attendance');
-const Mark = require('../models/Mark');
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
+const { getSupabaseAdmin } = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
 
-/**
- * GET /api/student/dashboard
- * Dashboard data — enrolled subjects, active semester, recent materials.
- */
+const db = () => getSupabaseAdmin();
+
+const getStudentId = async (client, userId) => {
+  const { data } = await client.from('students').select('student_id').eq('user_id', userId).maybeSingle();
+  if (!data) throw new AppError('Student profile not found', 404, 'NOT_FOUND');
+  return data.student_id;
+};
+
 const getDashboard = async (req, res, next) => {
   try {
-    // Get student with populated enrolled subjects
-    const student = await User.findById(req.user.id).populate({
-      path: 'enrolledSubjects',
-      populate: [
-        { path: 'teacher', select: 'name email' },
-        { path: 'semester', select: 'name year semesterNumber isActive' },
-      ],
-    });
+    const client = db();
+    const studentId = await getStudentId(client, req.user.id);
 
-    if (!student) {
-      throw new AppError('Student not found.', 404, 'NOT_FOUND');
+    const { data: enrollments, error: enrollError } = await client
+      .from('student_enrollments')
+      .select('subjects(subject_id, subject_name, subject_code, semesters(semester_number, academic_year), departments(department_name))')
+      .eq('student_id', studentId);
+
+    if (enrollError) throw enrollError;
+
+    const { data: activeSemester } = await client
+      .from('semesters')
+      .select('*')
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+
+    const subjectIds = (enrollments || []).map(e => e.subjects?.subject_id).filter(Boolean);
+
+    let recentMaterials = [];
+    if (subjectIds.length > 0) {
+      const { data: materials } = await client
+        .from('materials')
+        .select('title, file_type, uploaded_at, file_path, subjects(subject_name, subject_code)')
+        .in('subject_id', subjectIds)
+        .order('uploaded_at', { ascending: false })
+        .limit(10);
+      recentMaterials = materials || [];
     }
-
-    // Active semester
-    const activeSemester = await Semester.findOne({ isActive: true });
-
-    // Recent materials across enrolled subjects
-    const subjectIds = student.enrolledSubjects.map((s) => s._id);
-    const recentMaterials = await Material.find({ subject: { $in: subjectIds } })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .populate('subject', 'name code')
-      .populate('uploadedBy', 'name')
-      .select('title fileType createdAt subject uploadedBy');
 
     res.json({
       success: true,
       data: {
-        enrolledSubjects: student.enrolledSubjects,
+        enrolledSubjects: (enrollments || []).map(e => ({
+          ...e.subjects,
+          _id: e.subjects?.subject_id,
+          name: e.subjects?.subject_name,
+          code: e.subjects?.subject_code
+        })),
         activeSemester: activeSemester || null,
         recentMaterials,
       },
@@ -59,87 +59,57 @@ const getDashboard = async (req, res, next) => {
   }
 };
 
-/**
- * GET /api/student/subjects
- * All enrolled subjects with full details.
- */
 const getStudentSubjects = async (req, res, next) => {
   try {
-    const student = await User.findById(req.user.id).populate({
-      path: 'enrolledSubjects',
-      populate: [
-        { path: 'teacher', select: 'name email profilePicture' },
-        { path: 'semester', select: 'name year semesterNumber isActive' },
-        { path: 'materials', select: 'title fileType createdAt isIngested' },
-      ],
+    const client = db();
+    const studentId = await getStudentId(client, req.user.id);
+    const { data, error } = await client
+      .from('student_enrollments')
+      .select('subjects(subject_id, subject_name, subject_code, credits, description, banner_color, semesters(semester_number, academic_year), departments(department_name))')
+      .eq('student_id', studentId);
+
+    if (error) throw error;
+    res.json({ 
+      success: true, 
+      data: (data || []).map(e => ({
+        ...e.subjects,
+        _id: e.subjects?.subject_id,
+        name: e.subjects?.subject_name,
+        code: e.subjects?.subject_code
+      })) 
     });
-
-    if (!student) {
-      throw new AppError('Student not found.', 404, 'NOT_FOUND');
-    }
-
-    res.json({ success: true, data: student.enrolledSubjects });
   } catch (error) {
     next(error);
   }
 };
 
-<<<<<<< HEAD
-module.exports = {
-  getDashboard,
-  getStudentSubjects,
-=======
-/**
- * GET /api/student/attendance
- * Fetch all attendance records for the student with computed statistics.
- */
 const getAttendance = async (req, res, next) => {
   try {
-    const attendance = await Attendance.find({ student: req.user.id })
-      .populate('subject', 'name code')
-      .sort({ date: -1 });
+    const client = db();
+    const studentId = await getStudentId(client, req.user.id);
+    const { data, error } = await client
+      .from('attendance')
+      .select('attendance_id, date, status, subjects(subject_name, subject_code)')
+      .eq('student_id', studentId)
+      .order('date', { ascending: false });
 
-    // Compute overall stats
-    const totalClasses = attendance.length;
-    const presentClasses = attendance.filter(a => a.status === 'Present').length;
+    if (error) throw error;
+
+    const totalClasses = data ? data.length : 0;
+    const presentClasses = data ? data.filter(a => a.status === 'present').length : 0;
     const overallPercentage = totalClasses > 0 ? Math.round((presentClasses / totalClasses) * 100) : 0;
-    const requiredAttendance = 75;
-    const status = overallPercentage >= requiredAttendance ? 'Safe' : 'Warning';
-
-    // Compute subject-wise stats
-    const subjectMap = {};
-    attendance.forEach(a => {
-      const subId = a.subject?._id?.toString() || 'unknown';
-      if (!subjectMap[subId]) {
-        subjectMap[subId] = {
-          subjectId: subId,
-          subjectName: a.subject?.name || 'Unknown',
-          subjectCode: a.subject?.code || '',
-          total: 0,
-          present: 0,
-        };
-      }
-      subjectMap[subId].total++;
-      if (a.status === 'Present') subjectMap[subId].present++;
-    });
-
-    const subjectWise = Object.values(subjectMap).map(s => ({
-      ...s,
-      percentage: s.total > 0 ? Math.round((s.present / s.total) * 100) : 0,
-      status: (s.total > 0 ? Math.round((s.present / s.total) * 100) : 0) >= requiredAttendance ? 'Safe' : 'Warning',
-    }));
+    const status = overallPercentage >= 75 ? 'Safe' : 'Warning';
 
     res.json({
       success: true,
       data: {
-        records: attendance,
+        records: data || [],
         stats: {
           totalClasses,
           presentClasses,
           overallPercentage,
-          requiredAttendance,
-          status,
-          subjectWise,
+          requiredAttendance: 75,
+          status
         }
       }
     });
@@ -148,16 +118,53 @@ const getAttendance = async (req, res, next) => {
   }
 };
 
-/**
- * GET /api/student/marks
- * Fetch all marks records for the student.
- */
 const getMarks = async (req, res, next) => {
   try {
-    const marks = await Mark.find({ student: req.user.id })
-      .populate('subject', 'name code');
+    const client = db();
+    const studentId = await getStudentId(client, req.user.id);
+    const { data, error } = await client
+      .from('marks')
+      .select('mark_id, internal_marks, assignment_marks, lab_marks, mid_exam_marks, total, grade, subjects(subject_name, subject_code, credits)')
+      .eq('student_id', studentId);
 
-    res.json({ success: true, data: marks });
+    if (error) throw error;
+
+    let totalScore = 0;
+    let maxPossible = 0;
+    let passedSubjects = 0;
+    let failedSubjects = 0;
+
+    const formattedRecords = (data || []).map(mark => {
+      totalScore += Number(mark.total || 0);
+      maxPossible += 100;
+      if (['F', 'FAIL'].includes(mark.grade)) {
+        failedSubjects++;
+      } else {
+        passedSubjects++;
+      }
+      return {
+        ...mark,
+        internal1: mark.internal_marks,
+        internal2: mark.mid_exam_marks,
+        practical: mark.lab_marks,
+        assignment: mark.assignment_marks
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        records: formattedRecords,
+        stats: {
+          totalSubjects: data ? data.length : 0,
+          totalScore,
+          maxPossible,
+          overallPercentage: maxPossible > 0 ? Math.round((totalScore / maxPossible) * 100) : 0,
+          passedSubjects,
+          failedSubjects
+        }
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -167,6 +174,5 @@ module.exports = {
   getDashboard,
   getStudentSubjects,
   getAttendance,
-  getMarks,
->>>>>>> c6bda4a (Fix AI resume parsing normalization and chat fallback message, add features)
+  getMarks
 };

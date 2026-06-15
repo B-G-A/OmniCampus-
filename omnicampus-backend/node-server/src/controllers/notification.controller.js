@@ -1,105 +1,103 @@
-/**
- * Notification controller.
- *
- * Manages CRUD for in-app notifications and provides a helper
- * function `createNotification` for other controllers to use.
- */
-
-const Notification = require('../models/Notification');
+const { getSupabaseAdmin } = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
 
-/**
- * Helper: Create a notification for a specific user.
- * Called programmatically from other controllers (not an endpoint).
- */
+const db = () => getSupabaseAdmin();
+
+const toNotification = (row) => ({
+  _id: row.notification_id,
+  id: row.notification_id,
+  userId: row.user_id,
+  title: row.title,
+  message: row.message,
+  type: row.type,
+  isRead: row.is_read,
+  createdAt: row.created_at,
+});
+
 const createNotification = async ({ userId, type, title, message, relatedId }) => {
   try {
-    await Notification.create({
-      user: userId,
-      type: type || 'general',
+    const client = db();
+    await client.from('notifications').insert({
+      user_id: userId,
+      type: type || 'system',
       title,
       message: message || '',
-      relatedId: relatedId || null,
     });
   } catch (err) {
     console.error('Failed to create notification:', err.message);
   }
 };
 
-/**
- * Helper: Create notifications for multiple users at once.
- */
 const createBulkNotifications = async (userIds, { type, title, message, relatedId }) => {
   try {
-    const docs = userIds.map(uid => ({
-      user: uid,
-      type: type || 'general',
+    const client = db();
+    const docs = userIds.map((uid) => ({
+      user_id: uid,
+      type: type || 'system',
       title,
       message: message || '',
-      relatedId: relatedId || null,
     }));
     if (docs.length > 0) {
-      await Notification.insertMany(docs);
+      await client.from('notifications').insert(docs);
     }
   } catch (err) {
     console.error('Failed to create bulk notifications:', err.message);
   }
 };
 
-/**
- * GET /api/notifications
- * Fetch notifications for the logged-in user.
- */
 const getNotifications = async (req, res, next) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 30, 100);
-    const notifications = await Notification.find({ user: req.user.id })
-      .sort({ createdAt: -1 })
+    const client = db();
+    const { data, error } = await client
+      .from('notifications')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false })
       .limit(limit);
 
-    const unreadCount = await Notification.countDocuments({ user: req.user.id, isRead: false });
+    if (error) throw error;
 
-    res.json({
-      success: true,
-      data: notifications,
-      unreadCount,
-    });
+    const notifications = (data || []).map(toNotification);
+    const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+    res.json({ success: true, data: notifications, unreadCount });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * PATCH /api/notifications/read-all
- * Mark all notifications as read for the logged-in user.
- */
 const markAllRead = async (req, res, next) => {
   try {
-    await Notification.updateMany(
-      { user: req.user.id, isRead: false },
-      { $set: { isRead: true } }
-    );
+    const client = db();
+    const { error } = await client
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', req.user.id)
+      .eq('is_read', false);
+
+    if (error) throw error;
     res.json({ success: true, message: 'All notifications marked as read.' });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * PATCH /api/notifications/:id/read
- * Mark a single notification as read.
- */
 const markOneRead = async (req, res, next) => {
   try {
-    const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.id },
-      { $set: { isRead: true } },
-      { new: true }
-    );
-    if (!notification) {
-      throw new AppError('Notification not found.', 404, 'NOT_FOUND');
-    }
-    res.json({ success: true, data: notification });
+    const client = db();
+    const { data, error } = await client
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('notification_id', req.params.id)
+      .eq('user_id', req.user.id)
+      .select('*')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) throw new AppError('Notification not found.', 404, 'NOT_FOUND');
+
+    res.json({ success: true, data: toNotification(data) });
   } catch (error) {
     next(error);
   }

@@ -25,7 +25,15 @@ const roleGuard = (...allowedRoles) => {
       );
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    let rolesToCheck = [...allowedRoles];
+    if (rolesToCheck.includes('tpo') && !rolesToCheck.includes('placement_officer')) {
+      rolesToCheck.push('placement_officer');
+    }
+    if (rolesToCheck.includes('placement_officer') && !rolesToCheck.includes('tpo')) {
+      rolesToCheck.push('tpo');
+    }
+
+    if (!rolesToCheck.includes(req.user.role)) {
       return next(
         new AppError(
           `Access denied. Required role(s): ${allowedRoles.join(', ')}`,
